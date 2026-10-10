@@ -116,7 +116,8 @@ BEDROCK_MODEL=""
 # Amazon Nova models need no use-case form, so they work in accounts where an organisation policy blocks it.
 for m in "${BEDROCK_MODEL_ID:-}" "global.anthropic.claude-haiku-4-5-20251001-v1:0" \
          "apac.amazon.nova-lite-v1:0" "apac.amazon.nova-pro-v1:0" "apac.amazon.nova-micro-v1:0" \
-         "global.amazon.nova-2-lite-v1:0" "amazon.nova-lite-v1:0" "amazon.nova-micro-v1:0" \
+         "global.amazon.nova-2-lite-v1:0" "us.amazon.nova-lite-v1:0" "us.amazon.nova-pro-v1:0" "eu.amazon.nova-lite-v1:0" \
+         "amazon.nova-lite-v1:0" "amazon.nova-micro-v1:0" "us.anthropic.claude-3-5-haiku-20241022-v1:0" \
          "apac.anthropic.claude-3-5-sonnet-20241022-v2:0" "apac.anthropic.claude-3-haiku-20240307-v1:0"; do
   [ -n "$m" ] || continue
   if aws bedrock-runtime converse --model-id "$m" --messages '[{"role":"user","content":[{"text":"Reply with OK"}]}]' \
