@@ -1,0 +1,6 @@
+.env
+data/urbanshield.db*
+data/uploads
+data/cache
+tests
+__pycache__
