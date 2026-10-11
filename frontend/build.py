@@ -20,6 +20,7 @@ for f in ['earth-day','earth-night','earth-water','clouds','earth-topo']:
   s=s.replace("'"+n+"'","'data:image/jpeg;base64,"+base64.b64encode(open(D+n,'rb').read()).decode()+"'")
 lj=open(D+'live.js').read();assert '</script' not in lj.lower()
 s=s.replace('__LIVEJS__',lj)
+s=s.replace('__RAVIPOSTER__','data:image/jpeg;base64,'+base64.b64encode(open(D+'media/ravi-poster.jpg','rb').read()).decode())
 s=s.replace('__INDIA__',open(D+'india.json').read().strip())
 assert '{{i:' not in s and '__ICONS__' not in s
 open(D+'index.html','w').write(s)
