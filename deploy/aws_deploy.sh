@@ -187,8 +187,15 @@ ok "database ready at $DB_HOST (address stored in the secret)"
 say "Elastic Beanstalk environment: $ENV_NAME"
 STACK=$(aws elasticbeanstalk list-available-solution-stacks --query "SolutionStacks[?contains(@, 'Amazon Linux 2023') && contains(@, 'running Docker')] | [0]" --output text)
 [ "$STACK" != "None" ] || die "Could not find the Docker platform for Elastic Beanstalk in $REGION."
+# Put the server in the default VPC explicitly (some accounts reject the security group otherwise).
+SUBNETS=$(aws ec2 describe-subnets --filters Name=vpc-id,Values="$VPC" Name=default-for-az,Values=true \
+          --query 'Subnets[].SubnetId' --output text | tr '\t' ',')
+[ -n "$SUBNETS" ] || SUBNETS=$(aws ec2 describe-subnets --filters Name=vpc-id,Values="$VPC" --query 'Subnets[].SubnetId' --output text | tr '\t' ',')
 cat > /tmp/eb-options.json <<JSON
 [
+ {"Namespace":"aws:ec2:vpc","OptionName":"VPCId","Value":"$VPC"},
+ {"Namespace":"aws:ec2:vpc","OptionName":"Subnets","Value":"$SUBNETS"},
+ {"Namespace":"aws:ec2:vpc","OptionName":"AssociatePublicIpAddress","Value":"true"},
  {"Namespace":"aws:elasticbeanstalk:environment","OptionName":"EnvironmentType","Value":"SingleInstance"},
  {"Namespace":"aws:elasticbeanstalk:environment","OptionName":"ServiceRole","Value":"$SROLE"},
  {"Namespace":"aws:autoscaling:launchconfiguration","OptionName":"IamInstanceProfile","Value":"$PROFILE"},
