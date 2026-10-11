@@ -47,6 +47,10 @@ def _ward(args: dict, ctx: Ctx) -> Ward:
         hits = c.search_wards(name, limit=1)
         if hits:
             return hits[0]
+        from .names import find_ward
+        w = find_ward(name, cutoff=0.8)
+        if w:
+            return w
         raise ToolError(f"No Delhi ward called '{name}'. Try find_place for streets and landmarks.")
     if args.get("lat") is not None and args.get("lon") is not None:
         return c.nearest_ward(float(args["lat"]), float(args["lon"]))

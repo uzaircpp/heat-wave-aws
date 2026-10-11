@@ -19,7 +19,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from .. import aws, tools
+from .. import aws, names, tools
 from ..data import city
 from ..db import get_session
 from ..services.weather import city_now
@@ -251,16 +251,11 @@ _NOT_PLACES = {"the", "my", "me", "here", "my area", "my location", "this ward",
 async def mentioned_place(text: str) -> dict:
     """A ward or place named in the question ("in Saket", "Rohini mein"), as tool arguments. {} means the
     user's own location, which the tools use by default."""
-    t = " " + re.sub(r"[?!.,।]", " ", text.lower()) + " "
-    best = None
-    for w in city().wards:
-        n = w.name.lower()
-        if len(n) >= 4 and f" {n} " in t and (best is None or len(n) > len(best.name)):
-            best = w
+    best = names.find_ward(text)      # English, Hinglish or Hindi script, small spelling slips ok
     if best:
         return {"ward": best.name}
     m = re.search(r"(?i)\b(?:in|at|near|for|around|of)\s+([a-z][a-z .'-]{2,40}?)\s*(?:\b(?:today|tomorrow|now|right now|this week|ward|area|mein|me)\b|[?.!,]|$)", text.strip())
-    m = m or re.search(r"([^\s]+(?:\s[^\s]+)?)\s+(?:में|मे|mein)\b", text.strip())
+    m = m or re.search(r"([^\s]+(?:\s[^\s]+)?)\s+(?:में|मे|का|की|के|mein|ka|ki|ke)(?:\s|$)", text.strip())
     if not m:
         return {}
     q = m.group(1).strip(" .'-")

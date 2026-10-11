@@ -566,3 +566,14 @@ def test_assistant_uses_the_ward_in_the_question(client):
     assert "Lajpat Nagar" in ask("Lajpat Nagar forecast")
     assert here in ask("Is it safe to work now?")          # no place named: the user's own ward
     assert "to " in ask("nearest water near Connaught Place")   # a landmark, through geocoding
+
+
+def test_assistant_understands_hindi_ward_names(client):
+    ask = lambda text: client.post("/api/assistant/chat", json={  # noqa: E731
+        "messages": [{"role": "user", "text": text}], **KB, "lang": "hi"}).json()["reply"]
+    from app.names import find_ward
+    assert find_ward("जाकिर नगर का तापमान").name == "Zakir Nagar"
+    assert find_ward("zakir nager weather").name == "Zakir Nagar"
+    assert find_ward("Rohini East forecast").name == "Rohini East" and find_ward("weather in Rohini").name == "Rohini"
+    assert find_ward("Is it safe to work now?") is None and find_ward("कोई बाढ़ चेतावनी?") is None
+    assert "Zakir Nagar" in ask("जाकिर नगर का तापमान")
