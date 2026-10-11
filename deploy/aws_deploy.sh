@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # UrbanShield: deploy everything to AWS from AWS CloudShell (no local tools needed).
 #
-#   unzip urbanshield-aws.zip && cd urbanshield-backend && bash deploy/aws_deploy.sh
+#   git clone https://github.com/uzaircpp/heat-wave-aws.git && cd heat-wave-aws && bash deploy/aws_deploy.sh
 #
 # Creates, in one region (default ap-south-1, Mumbai):
 #   S3 bucket (report photos + deploy bundles), RDS PostgreSQL, Secrets Manager secret,
 #   IAM roles, Elastic Beanstalk (Docker, single instance) with CloudWatch logs, CloudFront (HTTPS).
-# The app then uses Rekognition, Translate, Bedrock and Amazon Location Service through its IAM role.
+# The app then uses Rekognition, Translate, Bedrock, Polly and Amazon Location Service through its IAM role.
 # Safe to run again: existing pieces are reused and the app is updated to the new code.
 # Remove everything with: bash deploy/aws_destroy.sh
 set -euo pipefail
@@ -24,7 +24,7 @@ ok()   { printf '    \033[0;32m%s\033[0m\n' "$*"; }
 die()  { printf '\n\033[1;31mStopped: %s\033[0m\n' "$*"; exit 1; }
 cd "$(dirname "$0")/.."
 [ -f data/wards.json ] || die "data/wards.json is missing. Unzip the bundle that includes the prepared Delhi data."
-[ -f Dockerfile ] || die "Run this from the urbanshield-backend folder."
+[ -f Dockerfile ] || die "Run this from the project folder (heat-wave-aws)."
 
 ACCOUNT=$(aws sts get-caller-identity --query Account --output text) || die "AWS credentials not working. Open this from AWS CloudShell."
 BUCKET="${APP}-${ACCOUNT}-${REGION}"
@@ -251,7 +251,8 @@ cat <<EOF
                    (Ward ops tab asks for it once; it is also in Secrets Manager: $SECRET)
 
  AWS in use: Elastic Beanstalk, EC2, RDS PostgreSQL, S3, CloudFront, Secrets Manager,
-             CloudWatch Logs, IAM, Rekognition, Translate, Location Service${BEDROCK_MODEL:+, Bedrock ($BEDROCK_MODEL)}
+             CloudWatch Logs, IAM, Rekognition, Translate, Polly, Location Service${BEDROCK_MODEL:+, Bedrock ($BEDROCK_MODEL)}
+ MCP server:       https://$DOMAIN/mcp
 
  Update after code changes:  bash deploy/aws_deploy.sh
  Live server logs:           bash deploy/aws_logs.sh
