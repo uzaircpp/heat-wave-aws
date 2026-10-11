@@ -1,4 +1,4 @@
-"""The UrbanShield assistant: chat and voice over the app's own live data.
+"""The Rahat assistant: chat and voice over the app's own live data.
 
 On AWS, Amazon Bedrock (Converse API with tool use) decides which tools to call and writes the answer;
 Amazon Polly reads it aloud in Indian English or Hindi. Without AWS, a small rule-based assistant calls
@@ -50,12 +50,12 @@ def system_prompt(ctx: tools.Ctx, lang: str) -> str:
         me = c.nearest_ward(ctx.me_lat, ctx.me_lon)
         where += f". Their phone is actually at lat {ctx.me_lat:.5f}, lon {ctx.me_lon:.5f}, in {me.name} (use this for 'my location')"
     reply_lang = "Hindi in Devanagari script, simple everyday words" if lang == "hi" else "English"
-    return f"""You are the UrbanShield assistant, a heat and flood safety helper for outdoor workers and residents of Delhi, India.
+    return f"""You are the Rahat (राहत) assistant, a heat and flood safety helper for outdoor workers and residents of Delhi, India.
 Current time in Delhi: {city_now().strftime('%A %d %B %Y, %I:%M %p')}.
 User location: {where}. Type of work: {tools.heat.ROLES.get(ctx.role, tools.heat.ROLES['rider'])[0]}.
 
 Rules:
-- Only answer questions about heat, weather, rain, flooding, safe working hours, water, shade, cooling places, safe routes, alerts, and how to use the UrbanShield app. For anything else, say briefly that you can only help with heat and flood safety in Delhi.
+- Only answer questions about heat, weather, rain, flooding, safe working hours, water, shade, cooling places, safe routes, alerts, and how to use the Rahat app. For anything else, say briefly that you can only help with heat and flood safety in Delhi.
 - Always get facts from the tools. Never guess temperatures, places, distances or times. If a tool returns an error, say so plainly.
 - Answers are often read aloud: keep them to 1 to 3 short sentences, give the single most useful action first, name the place and distance. No markdown, lists, emojis or links.
 - Distances: under 1000 m say metres, otherwise km with one decimal.

@@ -3,7 +3,9 @@
 <meta name="theme-color" content="#150605">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
-<title>UrbanShield</title>
+<title>Raहत · Heat and flood alerts for Delhi</title>
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" type="image/png" href="icons/favicon-64.png">
 <style>__BKLIT_CSS__</style>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -59,6 +61,10 @@ main,footer{position:relative;z-index:1}
 .nav{position:fixed;inset:0 0 auto 0;z-index:20;padding-top:env(safe-area-inset-top,0px);transition:background .5s,border-color .5s,backdrop-filter .5s;border-bottom:1px solid transparent}
 .nav.on{background:rgba(21,6,5,.74);backdrop-filter:blur(14px);border-bottom-color:var(--line)}
 .nav .wrap{height:70px;display:flex;align-items:center;justify-content:space-between;gap:24px}
+.rlogo{display:inline-block;height:64px;aspect-ratio:480/266;margin:-16px 0 -16px -6px;background:url(__LOGO__) center/contain no-repeat;vertical-align:middle}
+.rlogo-sm{height:48px;margin:-12px 0 -12px -4px}
+.rlogo-xl{height:clamp(110px,16vw,190px);margin:0}
+.rsun{display:inline-block;width:16px;height:16px;border-radius:4px;background:#150605 url(__SUN__) center/cover no-repeat;flex:none}
 .brand{display:flex;align-items:center;gap:10px;font-weight:600;font-size:17px;letter-spacing:-.01em}
 .nav ul{display:flex;gap:6px;list-style:none;margin:0;padding:0}
 .nav ul a{display:block;padding:8px 14px;border-radius:999px;font-size:14px;color:rgba(255,242,228,.78);transition:color .3s,background .3s}
@@ -769,15 +775,14 @@ select option:checked{background:#5A2A12;color:#FFC44D}
 }
 </style>
 
-<div id="pre" aria-hidden="true"><div class="pre-in"><div class="pre-sun"></div><div class="pre-word" id="preWord">UrbanShield</div><div class="pre-bar"><i id="preBar"></i></div><div class="pre-num"><span id="preNum">0</span>% · loading satellite imagery</div></div></div>
+<div id="pre" aria-hidden="true"><div class="pre-in"><div class="pre-word" id="preWord"><span class="rlogo rlogo-xl" role="img" aria-label="Raहत"></span></div><div class="pre-bar"><i id="preBar"></i></div><div class="pre-num"><span id="preNum">0</span>% · loading satellite imagery</div></div></div>
 <div id="prog"></div><div id="cur"><span>Drag</span></div><div class="grain" aria-hidden="true"></div>
 <canvas id="globe" aria-label="Rotating 3D Earth from NASA satellite imagery"></canvas>
 
 <header class="nav" id="nav">
   <div class="wrap">
     <a class="brand" href="#hero" data-go>
-      <svg width="26" height="26" viewBox="0 0 26 26" aria-hidden="true"><circle cx="13" cy="13" r="12" fill="none" stroke="#FFF2E4" stroke-width="1.5"/><path d="M13 1a12 12 0 0 1 0 24" fill="#FFB23F"/></svg>
-      UrbanShield
+      <span class="rlogo" role="img" aria-label="Raहत"></span>
     </a>
     <ul>
       <li><a href="#story" data-go>Story</a></li>
@@ -917,15 +922,15 @@ select option:checked{background:#5A2A12;color:#FFC44D}
     <!-- Rider story -->
     <section class="rv" id="rider" aria-label="Ravi's afternoon in Ward 12">
       <div class="rv-stage" id="rvStage">
-        <video class="rv-video" id="rvVideo" muted playsinline loop preload="none" poster="__RAVIPOSTER__" aria-label="Film: a delivery rider in Delhi heat stops after an UrbanShield alert, rests in tree shade, refills water and rides on"></video>
+        <video class="rv-video" id="rvVideo" muted playsinline loop preload="none" poster="__RAVIPOSTER__" aria-label="Film: a delivery rider in Delhi heat stops after a Raहत alert, rests in tree shade, refills water and rides on"></video>
         <div class="rv-grade" aria-hidden="true"></div><div class="rv-haze" aria-hidden="true"></div><div class="rv-shade" aria-hidden="true"></div><div class="rv-grain" aria-hidden="true"></div>
         <div class="rv-copy">
           <span class="rv-kicker"><i></i><span id="rvKick">Ward 12 · 1:40 PM</span></span>
           <h2>One alert, three better decisions.</h2>
-          <p>Ravi delivers lunch orders across Ward 12. UrbanShield tells him when to stop, where the shade is, and where to refill, before the heat gets to him.</p>
+          <p>Ravi delivers lunch orders across Ward 12. Raहत tells him when to stop, where the shade is, and where to refill, before the heat gets to him.</p>
         </div>
         <div class="r-notif" id="rNotif" role="status" aria-live="polite">
-          <div class="n-app"><svg width="16" height="16" viewBox="0 0 26 26" aria-hidden="true"><circle cx="13" cy="13" r="12" fill="#2A0B04"/><path d="M13 1a12 12 0 0 1 0 24" fill="#FFB23F"/></svg>UrbanShield<time>now</time></div>
+          <div class="n-app"><i class="rsun" aria-hidden="true"></i>Raहत<time>now</time></div>
           <b id="nTitle">Heat alert</b><p id="nBody"></p>
         </div>
         <button class="rv-big" id="rvBig" type="button" hidden aria-label="Play the film">{{i:play}}</button>
@@ -943,7 +948,7 @@ select option:checked{background:#5A2A12;color:#FFC44D}
           </div>
           <ol class="rv-chapters" id="rSteps">
             <li data-s="0"><button type="button"><span class="bar"><i></i></span><span class="t"><b>01</b><span>Riding through 47°C feels-like heat</span></span></button></li>
-            <li data-s="1"><button type="button"><span class="bar"><i></i></span><span class="t"><b>02</b><span>UrbanShield alert: stop and rest</span></span></button></li>
+            <li data-s="1"><button type="button"><span class="bar"><i></i></span><span class="t"><b>02</b><span>Raहत alert: stop and rest</span></span></button></li>
             <li data-s="2"><button type="button"><span class="bar"><i></i></span><span class="t"><b>03</b><span>Cools down in tree shade</span></span></button></li>
             <li data-s="3"><button type="button"><span class="bar"><i></i></span><span class="t"><b>04</b><span>Refills at the nearest water point</span></span></button></li>
             <li data-s="4"><button type="button"><span class="bar"><i></i></span><span class="t"><b>05</b><span>Back on the road when it is safe</span></span></button></li>
@@ -963,7 +968,7 @@ select option:checked{background:#5A2A12;color:#FFC44D}
       </div>
       <div class="dash" id="dash">
         <div class="app-bar">
-          <span class="app-brand"><svg width="20" height="20" viewBox="0 0 26 26" aria-hidden="true"><circle cx="13" cy="13" r="12" fill="none" stroke="#FFF2E4" stroke-width="1.5"/><path d="M13 1a12 12 0 0 1 0 24" fill="#FFB23F"/></svg>UrbanShield</span>
+          <span class="app-brand"><span class="rlogo rlogo-sm" role="img" aria-label="Raहत"></span></span>
           <div class="tabs" role="tablist" aria-label="App sections" id="appTabs">
             <span class="tpill" aria-hidden="true"></span>
             <button class="tab" role="tab" data-t="dash" aria-selected="true">{{i:squares-four}}Dashboard</button>
@@ -1241,7 +1246,7 @@ select option:checked{background:#5A2A12;color:#FFC44D}
 <footer class="solid">
   <div class="wrap">
     <div class="foot">
-      <div><span class="brand"><svg width="22" height="22" viewBox="0 0 26 26" aria-hidden="true"><circle cx="13" cy="13" r="12" fill="none" stroke="#FFF2E4" stroke-width="1.5"/><path d="M13 1a12 12 0 0 1 0 24" fill="#FFB23F"/></svg>UrbanShield</span><p>Heatwave and waterlogging early warning for Indian cities, one ward at a time.</p></div>
+      <div><span class="brand"><span class="rlogo" role="img" aria-label="Raहत"></span></span><p>Heatwave and waterlogging early warning for Indian cities, one ward at a time.</p></div>
       <div><h4>Platform</h4><ul><li><a href="#simulator" data-go>Flood simulator</a></li><li><a href="#heat" data-go>Heat map</a></li><li><a href="#command" data-go>Command center</a></li></ul></div>
       <div><h4>Data</h4><ul><li><a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a></li><li><a href="https://mausam.imd.gov.in/" target="_blank" rel="noopener">IMD warnings</a></li><li><a href="https://visibleearth.nasa.gov/collection/1484/blue-marble" target="_blank" rel="noopener">NASA Blue Marble</a></li></ul></div>
       <div><h4>Project</h4><ul><li><a href="#story" data-go>The story</a></li><li><a href="#people" data-go>Who it's for</a></li><li><a href="#closing" data-go>Contact</a></li></ul></div>
@@ -1300,7 +1305,7 @@ if(!reduce){document.querySelectorAll('#heroTitle .c,.hero-side>*,.alert-chip').
 /* Preloader: counts with the real texture load, then an iris wipe out of the sun */
 (function(){
   var pre=document.getElementById('pre'),num=document.getElementById('preNum'),bar=document.getElementById('preBar'),word=document.getElementById('preWord');
-  word.innerHTML=word.textContent.split('').map(function(c){return '<span>'+c+'</span>';}).join('');
+  if(!word.querySelector('.rlogo'))word.innerHTML=word.textContent.split('').map(function(c){return '<span>'+c+'</span>';}).join('');
   if(A&&!reduce)A.animate('#preWord span',{translateY:['110%','0%'],duration:900,ease:'outExpo',delay:A.stagger(35)});
   var t0=performance.now(),shown=0,done=false;
   function exit(){if(done)return;done=true;num.textContent='100';bar.style.transform='scaleX(1)';
@@ -1817,7 +1822,7 @@ function initHeat(){
   sl.forEach(function(s){s.addEventListener('mouseenter',function(){if(innerWidth>1024)open(s);});s.addEventListener('click',function(){open(s);});s.addEventListener('focus',function(){open(s);});});})();
 
 
-/* ---------- Rider story: a delivery cyclist guided by UrbanShield ---------- */
+/* ---------- Rider story: a delivery cyclist guided by Raहत ---------- */
 function initRider(){
   var stage=document.getElementById('rvStage');if(!stage)return;
   var v=document.getElementById('rvVideo'),notif=document.getElementById('rNotif'),nT=document.getElementById('nTitle'),nB=document.getElementById('nBody');
@@ -2094,7 +2099,7 @@ function initRider(){
     if(A&&!reduce){var L=safe.getTotalLength();safe.style.strokeDasharray=L;safe.style.strokeDashoffset=L;A.animate(safe,{strokeDashoffset:0,duration:1600,ease:'inOutQuad'});}
     var run=null;$('#routeGo').onclick=function(){var path=$('input[name=route]:checked').value==='safe'?safe:usual,L=path.getTotalLength(),t0=performance.now(),D=reduce?10:6000;eta.hidden=false;dot.setAttribute('opacity',1);if(run)cancelAnimationFrame(run);
       (function step(now){var t=Math.min(1,(now-t0)/D),pt=path.getPointAtLength(L*t);dot.setAttribute('cx',pt.x);dot.setAttribute('cy',pt.y);eta.innerHTML='ETA '+Math.max(0,Math.round(18*(1-t)))+' min<br><small>'+(t<1?'Sector 4 Main Rd, dry':'Arrived at Office')+'</small>';if(t<1)run=requestAnimationFrame(step);})(t0);};
-    $('#routeShare').onclick=function(){var txt='Flood alert: Ring Road Underpass is knee-deep and rising. Avoid until 7 PM. Use Sector 4 Main Rd. (UrbanShield)';if(navigator.clipboard)navigator.clipboard.writeText(txt).then(function(){toast('Alert text copied, paste it anywhere');},function(){toast('Alert ready to share');});else toast('Alert ready to share');};
+    $('#routeShare').onclick=function(){var txt='Flood alert: Ring Road Underpass is knee-deep and rising. Avoid until 7 PM. Use Sector 4 Main Rd. (Raहत)';if(navigator.clipboard)navigator.clipboard.writeText(txt).then(function(){toast('Alert text copied, paste it anywhere');},function(){toast('Alert ready to share');});else toast('Alert ready to share');};
   };
   /* Ward ops */
   INIT.ops=function(){
@@ -2128,7 +2133,7 @@ function initRider(){
   document.documentElement.style.setProperty('--worker-img','url('+PH.worker+')');
 })();
 
-/* ---------- Live data from the UrbanShield API ---------- */
+/* ---------- Live data from the Raहत API ---------- */
 __LIVEJS__
 
 /* ---------- Boot ---------- */

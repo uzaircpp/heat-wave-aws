@@ -252,7 +252,7 @@ async def status_message(sub: PushSub) -> dict:
     w = _ward(sub)
     hi = sub.lang == "hi"
     if not w:
-        return {"title": "UrbanShield", "body": "Alerts are on." if not hi else "चेतावनी चालू है।", "url": "/"}
+        return {"title": "Raहत", "body": "Alerts are on." if not hi else "चेतावनी चालू है।", "url": "/"}
     with SessionLocal() as s:
         c = candidates(sub, w, s, {}, utcnow())
     c.pop("_cat", None)

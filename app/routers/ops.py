@@ -107,7 +107,7 @@ def export_csv(hours: int = 24 * 30, actor: str = Depends(officer), s: Session =
         w.writerow([r.ref, r.kind, r.depth, r.severity, r.status, r.assignee, r.ward_name, r.address, r.lat, r.lon,
                     r.created_at.isoformat(), r.resolved_at.isoformat() if r.resolved_at else "", r.description or ""])
     return Response(buf.getvalue(), media_type="text/csv",
-                    headers={"Content-Disposition": "attachment; filename=urbanshield-reports.csv"})
+                    headers={"Content-Disposition": "attachment; filename=rahat-reports.csv"})
 
 
 class BroadcastIn(BaseModel):

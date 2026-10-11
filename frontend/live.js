@@ -22,7 +22,7 @@
       var ct=r.headers.get('content-type')||'';
       if(!r.ok)return (ct.indexOf('json')>=0?r.json():r.text()).then(function(j){var m=j&&j.detail?(typeof j.detail==='string'?j.detail:j.detail.map?j.detail.map(function(x){return x.msg;}).join('; '):JSON.stringify(j.detail)):('HTTP '+r.status);var e=new Error(m);e.status=r.status;throw e;});
       return ct.indexOf('json')>=0?r.json():r.text();
-    },function(e){var er=new Error(e.name==='AbortError'?'The server took too long to answer':'Cannot reach the UrbanShield server');er.status=0;throw er;})
+    },function(e){var er=new Error(e.name==='AbortError'?'The server took too long to answer':'Cannot reach the Raहत server');er.status=0;throw er;})
     .finally(function(){clearTimeout(t);});}
   function post(path,body){return get(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});}
   var TOK={get:function(){try{return localStorage.getItem('us_tok')||'';}catch(e){return '';}},set:function(v){try{localStorage.setItem('us_tok',v);}catch(e){}},clear:function(){try{localStorage.removeItem('us_tok');}catch(e){}}};
@@ -305,7 +305,7 @@
     segBind($('.seg3'),function(b){role=b.dataset.role;S.role=RM[role];load();pushSync();});
     var timer=null,btn=fresh($('#remindBtn'));btn.onclick=function(){
       if(timer){clearInterval(timer);timer=null;btn.querySelector('span').textContent='Set break reminders';toast('Break reminders off');return;}
-      function startR(n){timer=setInterval(function(){var msg='Rest 10 minutes in shade and drink a cup of water.';if(n)try{new Notification('UrbanShield break',{body:msg});}catch(e){}toast(msg);},60*60*1000);
+      function startR(n){timer=setInterval(function(){var msg='Rest 10 minutes in shade and drink a cup of water.';if(n)try{new Notification('Raहत break',{body:msg});}catch(e){}toast(msg);},60*60*1000);
         btn.querySelector('span').textContent='Reminders on';toast(n?'You will get a notification every hour while this page is open':'Reminders on. Keep this page open to get them');}
       if('Notification' in window&&Notification.permission!=='denied')Notification.requestPermission().then(function(p){startR(p==='granted');});else startR(false);};
     window.__safeLoad=load;load();pushSetup();
@@ -414,7 +414,7 @@
         eta.innerHTML='ETA '+Math.max(0,Math.round(mins*(1-t)))+' min<br><small>'+esc(t<1?'On '+via:'Arrived, '+(ends.to?ends.to.name:''))+'</small>';if(t<1)run=requestAnimationFrame(step);else setTimeout(function(){dot.remove();},1500);})(t0);};
     fresh($('#routeShare')).onclick=function(){if(!R){toast('Plan a route first');return;}var a=R.alternatives[chosen],via=a.via.filter(Boolean).slice(0,2).join(', ');
       var hz=[];R.alternatives.forEach(function(x){x.hazards.forEach(function(z){if(hz.indexOf(z.name.split(',')[0])<0)hz.push(z.name.split(',')[0]);});});
-      var txt='UrbanShield route from '+ends.from.name+' to '+ends.to.name+': '+(via?'via '+via+', ':'')+Math.round(a.duration_s/60)+' min.'+(hz.length?' Flooding reported at '+hz.slice(0,3).join(', ')+'.':' No flooding reported on the way.');
+      var txt='Raहत route from '+ends.from.name+' to '+ends.to.name+': '+(via?'via '+via+', ':'')+Math.round(a.duration_s/60)+' min.'+(hz.length?' Flooding reported at '+hz.slice(0,3).join(', ')+'.':' No flooding reported on the way.');
       if(navigator.share)navigator.share({text:txt}).catch(function(){});else if(navigator.clipboard)navigator.clipboard.writeText(txt).then(function(){toast('Copied, paste it anywhere');},function(){toast(txt);});else toast(txt);};
     window.__routeSet=function(a,b){pickEnd('from',a);pickEnd('to',b);};
     window.__routeTo=function(r){if(r&&r.lat){setAlert('',r.sev==='info'?'Selected place':'Avoid this spot',r.title,(r.desc||'')+' Routes below are checked against it.');}fromI.focus();};
@@ -472,7 +472,7 @@
         var s=tr.querySelector('.st-sel');if(s)s.onchange=function(){patch(r,{status:s.value});};body.appendChild(tr);});
       if(!body.children.length)body.innerHTML='<tr><td colspan="6" style="color:var(--dim);font-family:var(--sans)">'+(rows.length?'Nothing here. Every report has a crew.':'No citizen reports in the last 30 days.')+'</td></tr>';}
     segBind($('.seg4'),function(b){filter=b.dataset.f;render();});
-    fresh($('#csvBtn')).onclick=function(){needToken(function(){off('/api/ops/export.csv').then(function(csv){var a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download='urbanshield-reports.csv';document.body.appendChild(a);a.click();a.remove();toast('CSV downloaded');}).catch(function(e){toast('Export failed: '+e.message);});});};
+    fresh($('#csvBtn')).onclick=function(){needToken(function(){off('/api/ops/export.csv').then(function(csv){var a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download='rahat-reports.csv';document.body.appendChild(a);a.click();a.remove();toast('CSV downloaded');}).catch(function(e){toast('Export failed: '+e.message);});});};
     fresh($('#bcBtn')).onclick=function(){var a=S.alerts[0];broadcastModal(a?a.title+'. '+(a.body||'').slice(0,240):'');};
     var ins=$('#opsInsight');ins.querySelector('b').textContent='Drain plan';
     get('/api/forecast?ward_id='+S.wardId).then(function(f){var wet=f.days.slice().sort(function(a,b){return b.rain_mm-a.rain_mm;})[0];var heavy=wet&&wet.rain_mm>=15;
@@ -509,7 +509,7 @@
     if(S.loc&&userWard()){b.lat=S.loc.lat;b.lon=S.loc.lon;}return b;}
   function curSub(){if(!PUSH_OK)return Promise.resolve(null);return navigator.serviceWorker.getRegistration('./').then(function(r){return r?r.pushManager.getSubscription():null;});}
   var pushSync=debounce(function(){if(!store('us_push'))return;curSub().then(function(sub){if(sub)post('/api/push/subscribe',pushBody(sub)).catch(function(){});});},1500);
-  function pushOn(){if(IOS&&!STANDALONE){modal('Alerts on iPhone','<p>On iPhone, alerts work once UrbanShield is on your home screen. Tap the Share button in Safari, choose <b>Add to Home Screen</b>, open UrbanShield from there and turn alerts on again.</p>',[{label:'OK',primary:true}]);return Promise.reject(new Error('ios'));}
+  function pushOn(){if(IOS&&!STANDALONE){modal('Alerts on iPhone','<p>On iPhone, alerts work once Raहत is on your home screen. Tap the Share button in Safari, choose <b>Add to Home Screen</b>, open Raहत from there and turn alerts on again.</p>',[{label:'OK',primary:true}]);return Promise.reject(new Error('ios'));}
     return Notification.requestPermission().then(function(p){if(p!=='granted')throw new Error(p==='denied'?'Notifications are blocked for this site. Allow them in the browser settings.':'Notifications not allowed');
       return Promise.all([swReg(),get('/api/push/key')]);}).then(function(a){var reg=a[0];
       return reg.pushManager.getSubscription().then(function(old){return old||reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:b64key(a[1].public_key)});});})
@@ -530,10 +530,10 @@
   function assistant(){
     var lang=store('us_lang')||'en',mute=!!store('us_mute'),hist=[],busy=false,info=null,audio=null,rec=null,greeted=false;
     var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-    var T={en:{title:'Ask UrbanShield',ph:'Ask about heat, rain, water, routes',hello:'Hi! Ask me if it is safe to work now, where the nearest water or shade is, or which roads are flooded. Tap the mic to talk, in English or Hindi.',listen:'Listening…',fail:'Sorry, I could not answer that: '},
-           hi:{title:'UrbanShield से पूछें',ph:'गर्मी, बारिश, पानी, रास्ते के बारे में पूछें',hello:'नमस्ते! पूछिए: क्या अभी काम करना सुरक्षित है, सबसे पास पानी या छाया कहां है, या कौन सी सड़क पर पानी भरा है। बोलने के लिए माइक दबाएं।',listen:'सुन रहा हूं…',fail:'माफ़ कीजिए, जवाब नहीं मिल सका: '}};
-    var fab=document.createElement('button');fab.type='button';fab.className='ask-fab';fab.setAttribute('aria-label','Ask UrbanShield');fab.innerHTML=ic('chat-circle-dots')+'<span>Ask</span>';
-    var pn=document.createElement('div');pn.className='ask-panel';pn.hidden=true;pn.setAttribute('role','dialog');pn.setAttribute('aria-label','UrbanShield assistant');
+    var T={en:{title:'Ask Raहत',ph:'Ask about heat, rain, water, routes',hello:'Hi! Ask me if it is safe to work now, where the nearest water or shade is, or which roads are flooded. Tap the mic to talk, in English or Hindi.',listen:'Listening…',fail:'Sorry, I could not answer that: '},
+           hi:{title:'राहत से पूछें',ph:'गर्मी, बारिश, पानी, रास्ते के बारे में पूछें',hello:'नमस्ते! पूछिए: क्या अभी काम करना सुरक्षित है, सबसे पास पानी या छाया कहां है, या कौन सी सड़क पर पानी भरा है। बोलने के लिए माइक दबाएं।',listen:'सुन रहा हूं…',fail:'माफ़ कीजिए, जवाब नहीं मिल सका: '}};
+    var fab=document.createElement('button');fab.type='button';fab.className='ask-fab';fab.setAttribute('aria-label','Ask Rahat');fab.innerHTML=ic('chat-circle-dots')+'<span>Ask</span>';
+    var pn=document.createElement('div');pn.className='ask-panel';pn.hidden=true;pn.setAttribute('role','dialog');pn.setAttribute('aria-label','Rahat assistant');
     pn.innerHTML='<div class="ask-h"><div><b id="askT"></b><small id="askProv">Live Delhi data</small></div><div class="ask-tools"><button type="button" class="ask-ib" id="askLoc">'+ic('crosshair')+'</button><button type="button" class="ask-lang" id="askLang"></button><button type="button" class="ask-ib" id="askSpk"></button><button type="button" class="ask-ib" id="askX" aria-label="Close">'+ic('x')+'</button></div></div>'+
       '<div class="ask-log" id="askLog" aria-live="polite"></div><div class="ask-chips" id="askChips"></div>'+
       '<form class="ask-in" id="askForm"><button type="button" class="ask-mic" id="askMic" aria-label="Talk">'+ic('microphone')+'</button><input id="askTxt" autocomplete="off" maxlength="500" enterkeyhint="send"><button type="submit" class="ask-send" aria-label="Send">'+ic('paper-plane-right')+'</button></form>';
@@ -611,5 +611,5 @@
       var RF={map:window.__mapRefresh,safe:window.__safeLoad,ops:window.__opsLoad,fc:INIT.fc};Object.keys(inited).forEach(function(t){if(inited[t]&&RF[t])RF[t]();});
       setInterval(function(){if(!document.hidden)loadDash().catch(function(){});},5*60*1000);
       setInterval(function(){if(!document.hidden)loadAlerts().catch(function(){});},2*60*1000);});
-  }).catch(function(e){console.warn('UrbanShield API',e);window.__live=false;Object.keys(DEMO).forEach(function(k){if(!inited[k])INIT[k]=DEMO[k];});setChip('off','Server offline, example data');});
+  }).catch(function(e){console.warn('Rahat API',e);window.__live=false;Object.keys(DEMO).forEach(function(k){if(!inited[k])INIT[k]=DEMO[k];});setChip('off','Server offline, example data');});
 })();

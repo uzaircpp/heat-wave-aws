@@ -1,19 +1,19 @@
-/* UrbanShield service worker: shows push alerts (rest now, safe again, heavy rain, official warnings)
+/* Rahat service worker: shows push alerts (rest now, safe again, heavy rain, official warnings)
    even when the app is closed, and opens the right screen when one is tapped. */
 self.addEventListener('install', function () { self.skipWaiting(); });
 self.addEventListener('activate', function (e) { e.waitUntil(self.clients.claim()); });
 
 self.addEventListener('push', function (e) {
   var m = {};
-  try { m = e.data ? e.data.json() : {}; } catch (err) { m = { title: 'UrbanShield', body: e.data ? e.data.text() : '' }; }
+  try { m = e.data ? e.data.json() : {}; } catch (err) { m = { title: 'Raहत', body: e.data ? e.data.text() : '' }; }
   var actions = [{ action: 'open', title: 'Open' }];
   if (m.place) actions.unshift({ action: 'directions', title: 'Directions' });
   var urgent = m.kind === 'rest' || m.kind === 'rain' || m.kind === 'official' || m.kind === 'broadcast';
-  e.waitUntil(self.registration.showNotification(m.title || 'UrbanShield', {
+  e.waitUntil(self.registration.showNotification(m.title || 'Raहत', {
     body: m.body || '',
     icon: 'icons/icon-192.png',
     badge: 'icons/badge-72.png',
-    tag: m.tag || m.kind || 'urbanshield',
+    tag: m.tag || m.kind || 'rahat',
     renotify: true,
     requireInteraction: urgent,
     vibrate: urgent ? [300, 120, 300, 120, 300] : [200],

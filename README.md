@@ -1,8 +1,10 @@
-# UrbanShield
+<p align="center"><img src="frontend/assets/logo-dark.png" alt="Raहत" width="320"></p>
+
+# Raहत (Rahat)
 
 **Heat and flood early warning for Delhi's 290 wards.** Built for Hackathon 2026, Track 2: Heat and Water.
 
-UrbanShield turns live weather, satellite land cover, terrain and citizen reports into ward-level warnings:
+Rahat turns live weather, satellite land cover, terrain and citizen reports into ward-level warnings:
 safe working hours for outdoor workers, a flood simulator, flood-aware routes, a citizen reporting app with
 photo verification, a ward-officer console with AI-drafted alerts in English and Hindi, a chat and voice
 assistant, an MCP server over the same data, and push alerts that reach a phone even with the app closed.
@@ -40,7 +42,9 @@ IMD-threshold forecast rules and citizen report clusters. Reports, alerts and br
 dashboards instantly (Server-Sent Events).
 
 
-# UrbanShield backend
+# Rahat backend
+
+(AWS resource names, the Python package and some internal identifiers still use the earlier project name `urbanshield`; renaming them would recreate the cloud resources.)
 
 Heatwave and waterlogging early warning for Delhi, built on open data. FastAPI + SQLite (or Postgres).
 It also serves the website from `web/`, so one deploy gives you the site and the API on the same address.
@@ -227,7 +231,7 @@ It takes about 25–30 minutes the first time (the database is the slow part) an
 officer token. Run it again after code changes to update. `bash deploy/aws_logs.sh` follows the server log;
 `bash deploy/aws_destroy.sh` deletes everything so credits stop being used.
 
-| AWS service | What UrbanShield uses it for |
+| AWS service | What Rahat uses it for |
 |---|---|
 | Elastic Beanstalk + EC2 (Docker) | runs the FastAPI server, built from the Dockerfile on AWS |
 | Amazon RDS for PostgreSQL | reports, history, alerts, broadcasts, subscribers |

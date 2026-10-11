@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# UrbanShield: deploy everything to AWS from AWS CloudShell (no local tools needed).
+# Rahat: deploy everything to AWS from AWS CloudShell (no local tools needed).
 #
 #   git clone https://github.com/uzaircpp/heat-wave-aws.git && cd heat-wave-aws && bash deploy/aws_deploy.sh
 #
@@ -48,9 +48,9 @@ VPC=$(aws ec2 describe-vpcs --filters Name=is-default,Values=true --query 'Vpcs[
 [ "$VPC" != "None" ] || die "This region has no default VPC. Create one: VPC console > Actions > Create default VPC."
 sg() { aws ec2 describe-security-groups --filters Name=group-name,Values="$1" Name=vpc-id,Values="$VPC" --query 'SecurityGroups[0].GroupId' --output text; }
 APP_SG=$(sg ${APP}-app)
-[ "$APP_SG" != "None" ] || APP_SG=$(aws ec2 create-security-group --group-name ${APP}-app --description "UrbanShield web server" --vpc-id "$VPC" --query GroupId --output text)
+[ "$APP_SG" != "None" ] || APP_SG=$(aws ec2 create-security-group --group-name ${APP}-app --description "Rahat web server" --vpc-id "$VPC" --query GroupId --output text)
 DB_SG=$(sg ${APP}-db)
-[ "$DB_SG" != "None" ] || DB_SG=$(aws ec2 create-security-group --group-name ${APP}-db --description "UrbanShield database, reachable only from the web server" --vpc-id "$VPC" --query GroupId --output text)
+[ "$DB_SG" != "None" ] || DB_SG=$(aws ec2 create-security-group --group-name ${APP}-db --description "Rahat database, reachable only from the web server" --vpc-id "$VPC" --query GroupId --output text)
 aws ec2 authorize-security-group-ingress --group-id "$DB_SG" --protocol tcp --port 5432 --source-group "$APP_SG" >/dev/null 2>&1 || true
 ok "web $APP_SG, database $DB_SG (port 5432 only from the web server)"
 
@@ -62,7 +62,7 @@ if CUR=$(aws secretsmanager get-secret-value --secret-id "$SECRET" --query Secre
   DB_PW=$(pyjson "$CUR" DB_PASSWORD); OFFICER_TOKEN=$(pyjson "$CUR" OFFICER_TOKEN); ok "exists"
 else
   DB_PW=$(rand 28); OFFICER_TOKEN=$(rand 32)
-  aws secretsmanager create-secret --name "$SECRET" --description "UrbanShield app settings" \
+  aws secretsmanager create-secret --name "$SECRET" --description "Rahat app settings" \
     --secret-string "$(python3 -c "import json,sys; print(json.dumps({'DB_PASSWORD':sys.argv[1],'OFFICER_TOKEN':sys.argv[2]}))" "$DB_PW" "$OFFICER_TOKEN")" >/dev/null
   ok "created with a new database password and officer token"
 fi
@@ -169,7 +169,7 @@ print(f"    {os.path.getsize(out) / 1e6:.1f} MB")
 PY
 aws s3 cp "$BUNDLE" "s3://$BUCKET/deploy/$(basename "$BUNDLE")" --only-show-errors
 aws elasticbeanstalk describe-applications --application-names $APP --query 'Applications[0].ApplicationName' --output text | grep -q $APP \
-  || aws elasticbeanstalk create-application --application-name $APP --description "UrbanShield heat and flood early warning" >/dev/null
+  || aws elasticbeanstalk create-application --application-name $APP --description "Rahat heat and flood early warning" >/dev/null
 VERSION="v-$TS"
 aws elasticbeanstalk create-application-version --application-name $APP --version-label "$VERSION" \
   --source-bundle S3Bucket="$BUCKET",S3Key="deploy/$(basename "$BUNDLE")" >/dev/null
@@ -260,7 +260,7 @@ DOMAIN=$(aws cloudfront get-distribution --id "$DIST_ID" --query Distribution.Do
 cat <<EOF
 
 =====================================================================
- UrbanShield is deployed.
+ Rahat is deployed.
 
  Website (HTTPS):  https://$DOMAIN
                    (if it does not open yet, wait 5-10 minutes for CloudFront)

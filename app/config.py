@@ -97,7 +97,7 @@ class Settings:
     @property
     def user_agent(self) -> str:
         contact = f" ({self.contact_email})" if self.contact_email else ""
-        return f"UrbanShield/1.0{contact}"
+        return f"Rahat/1.0{contact}"
 
 
 settings = Settings()

@@ -1,11 +1,11 @@
-"""UrbanShield as an MCP server: the same live-data tools the in-app assistant uses, for any MCP client
+"""Rahat as an MCP server: the same live-data tools the in-app assistant uses, for any MCP client
 (Claude Desktop, Claude Code, Cursor, an agent on Amazon Bedrock AgentCore...).
 
 Two ways to connect:
   * Remote, streamable HTTP: the API server exposes it at  https://<your-server>/mcp
   * Local, stdio:            python -m app.mcp_server      (loads the data and weather itself)
 
-Tools are read-only and limited to UrbanShield's data: conditions, safe hours, nearby water and shade,
+Tools are read-only and limited to Rahat's data: conditions, safe hours, nearby water and shade,
 alerts, forecast, safe routes, the flood what-if and place lookup in Delhi.
 """
 from __future__ import annotations
@@ -22,7 +22,7 @@ from .db import SessionLocal
 log = logging.getLogger("urbanshield.mcp")
 
 mcp = FastMCP(
-    "UrbanShield",
+    "Rahat",
     instructions=("Live heat and flood safety data for Delhi, India: weather and heat risk per ward, safe hours for "
                   "outdoor work (WBGT against ACGIH limits), nearest drinking water, shade and shelters from "
                   "OpenStreetMap, official and forecast alerts, flood-aware routes and a flood what-if model. "
@@ -99,10 +99,10 @@ async def find_place(query: str) -> dict:
     return await _run("find_place", {"query": query})
 
 
-@mcp.resource("urbanshield://about")
+@mcp.resource("rahat://about")
 def about() -> str:
-    """What UrbanShield is and where its data comes from."""
-    return ("UrbanShield is heat and flood early warning for Delhi. Weather: Open-Meteo, refreshed every 15 minutes. "
+    """What Rahat is and where its data comes from."""
+    return ("Rahat (राहत) is heat and flood early warning for Delhi. Weather: Open-Meteo, refreshed every 15 minutes. "
             "Wards: 290 MCD wards. Places: OpenStreetMap. Tree cover: ESA WorldCover 2021. Alerts: NDMA SACHET, "
             "forecast rules on IMD thresholds, citizen reports. Safe hours: WBGT against ACGIH limits per workload.")
 

@@ -436,7 +436,7 @@ def test_mcp_server_over_http(client):
     r = client.post("/mcp", headers=h, json={"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {
         "protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "test", "version": "1"}}})
     assert r.status_code == 200, r.text
-    assert r.json()["result"]["serverInfo"]["name"] == "UrbanShield"
+    assert r.json()["result"]["serverInfo"]["name"] == "Rahat"
     names = {t["name"] for t in client.post("/mcp", headers=h, json={"jsonrpc": "2.0", "id": 2, "method": "tools/list"}).json()["result"]["tools"]}
     assert {"get_conditions", "find_nearby", "plan_route", "simulate_flood"} <= names
     r = client.post("/mcp", headers=h, json={"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {

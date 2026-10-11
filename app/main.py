@@ -1,4 +1,4 @@
-"""UrbanShield API. Run: uvicorn app.main:app --host 0.0.0.0 --port 8000"""
+"""Rahat (राहत) API. Run: uvicorn app.main:app --host 0.0.0.0 --port 8000"""
 from __future__ import annotations
 
 import asyncio
@@ -60,7 +60,7 @@ async def lifespan(app: FastAPI):
     await close_client()
 
 
-app = FastAPI(title="UrbanShield API", version="1.0", lifespan=lifespan,
+app = FastAPI(title="Rahat API", version="1.0", lifespan=lifespan,
               description="Heat and flood early warning for Indian cities, built on open data.")
 app.add_middleware(GZipMiddleware, minimum_size=1024)
 app.add_middleware(CORSMiddleware, allow_origins=list(settings.cors_origins), allow_methods=["*"],

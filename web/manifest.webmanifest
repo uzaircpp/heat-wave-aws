@@ -1,6 +1,6 @@
 {
-  "name": "UrbanShield: heat and flood alerts for Delhi",
-  "short_name": "UrbanShield",
+  "name": "Raहत: heat and flood alerts for Delhi",
+  "short_name": "Raहत",
   "description": "Safe working hours, nearest water and shade, flood-aware routes and push alerts for Delhi.",
   "start_url": "/?go=safe",
   "scope": "/",
@@ -9,8 +9,26 @@
   "theme_color": "#150605",
   "lang": "en-IN",
   "icons": [
-    {"src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png"},
-    {"src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png"},
-    {"src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "icons/favicon-64.png",
+      "sizes": "64x64",
+      "type": "image/png"
+    }
   ]
 }

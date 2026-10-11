@@ -4,7 +4,7 @@ set -uo pipefail
 REGION="${REGION:-ap-south-1}"; APP=urbanshield; ENV_NAME=urbanshield-prod; DB_ID=urbanshield-db; SECRET=urbanshield/app
 export AWS_DEFAULT_REGION="$REGION" AWS_REGION="$REGION" AWS_PAGER=""
 ACCOUNT=$(aws sts get-caller-identity --query Account --output text); BUCKET="${APP}-${ACCOUNT}-${REGION}"
-read -r -p "Delete the UrbanShield website, database (all reports) and photos in $REGION? Type DELETE: " A
+read -r -p "Delete the Rahat website, database (all reports) and photos in $REGION? Type DELETE: " A
 [ "$A" = "DELETE" ] || { echo "Nothing deleted."; exit 0; }
 
 DIST_ID=$(aws cloudfront list-distributions --query "DistributionList.Items[?Comment=='$APP'].Id | [0]" --output text 2>/dev/null)
@@ -47,4 +47,4 @@ if [ -n "${DIST_ID:-}" ] && [ "$DIST_ID" != "None" ]; then
   ETAG=$(aws cloudfront get-distribution --id "$DIST_ID" --query ETag --output text)
   aws cloudfront delete-distribution --id "$DIST_ID" --if-match "$ETAG"
 fi
-echo "Done. Everything UrbanShield created in $REGION is deleted."
+echo "Done. Everything Rahat created in $REGION is deleted."

@@ -1,4 +1,4 @@
-"""Tools over UrbanShield's live data, shared by the in-app assistant (Bedrock tool use) and the MCP server.
+"""Tools over Rahat's live data, shared by the in-app assistant (Bedrock tool use) and the MCP server.
 
 Every tool returns plain JSON built from the same services the website uses, so the assistant can only
 talk about real numbers: the forecast, safe working hours, mapped shade and water, alerts, routes and
@@ -20,7 +20,7 @@ from .sources.http import UpstreamError
 
 ROLES = {"rider": "rider", "delivery": "rider", "construction": "construction", "builder": "construction",
          "vendor": "vendor", "street vendor": "vendor"}
-SOURCES = {"sachet": "NDMA / IMD official warning", "forecast": "UrbanShield forecast check (IMD thresholds)",
+SOURCES = {"sachet": "NDMA / IMD official warning", "forecast": "Rahat forecast check (IMD thresholds)",
            "reports": "citizen reports"}
 PLACE_KINDS = ["drinking_water", "shelter", "community_centre", "park", "hospital"]
 

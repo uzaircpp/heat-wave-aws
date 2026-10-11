@@ -23,6 +23,9 @@ lj=open(D+'live.js').read();assert '</script' not in lj.lower()
 s=s.replace('__LIVEJS__',lj)
 s=s.replace('__RAVIPOSTER__','data:image/jpeg;base64,'+base64.b64encode(open(D+'media/ravi-poster.jpg','rb').read()).decode())
 s=s.replace('__INDIA__',open(D+'india.json').read().strip())
+s=s.replace('__LOGO__','data:image/webp;base64,'+base64.b64encode(open(D+'assets/logo-480.webp','rb').read()).decode())
+s=s.replace('__SUN__','data:image/png;base64,'+base64.b64encode(open(D+'assets/sun-64.png','rb').read()).decode())
+assert '__LOGO__' not in s and '__SUN__' not in s
 assert '{{i:' not in s and '__ICONS__' not in s
 open(D+'index.html','w').write(s)
 print(round(len(s)/1e6,2),'MB','emdash',s.count('—'),s.count('–'))
