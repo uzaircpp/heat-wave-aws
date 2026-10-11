@@ -2,7 +2,7 @@
 # Delete everything aws_deploy.sh created (stops all charges). Asks before deleting.
 set -uo pipefail
 REGION="${REGION:-ap-south-1}"; APP=urbanshield; ENV_NAME=urbanshield-prod; DB_ID=urbanshield-db; SECRET=urbanshield/app
-export AWS_DEFAULT_REGION="$REGION" AWS_PAGER=""
+export AWS_DEFAULT_REGION="$REGION" AWS_REGION="$REGION" AWS_PAGER=""
 ACCOUNT=$(aws sts get-caller-identity --query Account --output text); BUCKET="${APP}-${ACCOUNT}-${REGION}"
 read -r -p "Delete the UrbanShield website, database (all reports) and photos in $REGION? Type DELETE: " A
 [ "$A" = "DELETE" ] || { echo "Nothing deleted."; exit 0; }

@@ -17,7 +17,8 @@ ENV_NAME="urbanshield-prod"
 DB_ID="urbanshield-db"
 SECRET="urbanshield/app"
 INSTANCE_TYPE="${INSTANCE_TYPE:-t3.small}"
-export AWS_DEFAULT_REGION="$REGION" AWS_PAGER=""
+# AWS_REGION (set by CloudShell to the console region) wins over AWS_DEFAULT_REGION, so set both
+export AWS_DEFAULT_REGION="$REGION" AWS_REGION="$REGION" AWS_PAGER=""
 
 say()  { printf '\n\033[1;33m==> %s\033[0m\n' "$*"; }
 ok()   { printf '    \033[0;32m%s\033[0m\n' "$*"; }
@@ -34,7 +35,8 @@ say "Account $ACCOUNT, region $REGION"
 # ---------- S3 ----------
 say "S3 bucket for photos and deploy bundles: $BUCKET"
 if ! aws s3api head-bucket --bucket "$BUCKET" 2>/dev/null; then
-  aws s3api create-bucket --bucket "$BUCKET" --create-bucket-configuration LocationConstraint="$REGION" >/dev/null
+  if [ "$REGION" = "us-east-1" ]; then aws s3api create-bucket --bucket "$BUCKET" >/dev/null
+  else aws s3api create-bucket --bucket "$BUCKET" --region "$REGION" --create-bucket-configuration LocationConstraint="$REGION" >/dev/null; fi
   aws s3api put-public-access-block --bucket "$BUCKET" --public-access-block-configuration \
     BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
   ok "created (private, encrypted)"
