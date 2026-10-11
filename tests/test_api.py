@@ -357,3 +357,201 @@ def test_photo_served_from_s3(client, monkeypatch):
     r = client.get("/api/photos/US-2026-00001.jpg", follow_redirects=False)
     assert r.status_code == 302 and "s3.amazonaws.com" in r.headers["location"]
     assert client.get("/api/photos/../../etc/passwd").status_code == 404
+
+
+# ---------- assistant, voice, MCP and push alerts ----------
+KB = {"lat": 28.6505, "lon": 77.1905}
+
+
+def test_tools_answer_from_live_data(client):
+    from app import tools
+    from app.db import SessionLocal
+
+    async def run():
+        with SessionLocal() as s:
+            ctx = tools.Ctx(**KB, session=s)
+            cond = await tools.call("get_conditions", {}, ctx)
+            near = await tools.call("find_nearby", {"kinds": ["drinking_water"]}, ctx)
+            hrs = await tools.call("get_safe_hours", {"work": "construction"}, ctx)
+            fc = await tools.call("get_forecast", {"ward": cond["ward"]}, ctx)
+            sim = await tools.call("simulate_flood", {"rain_mm": 120}, ctx)
+            bad = await tools.call("get_conditions", {"ward": "Atlantis"}, ctx)
+            return cond, near, hrs, fc, sim, bad
+    cond, near, hrs, fc, sim, bad = asyncio.run(run())
+    assert cond["temperature_c"] is not None and cond["heat_risk_now"]
+    assert near["places"] and near["places"][0]["kind"] == "drinking_water"
+    assert hrs["work_type"] == "Construction" and hrs["hours"]
+    assert len(fc["days"]) == 7 and sim["wards_knee_deep_or_worse"] >= 0
+    assert "error" in bad and "Atlantis" in bad["error"]
+
+
+def test_offline_assistant_en_hi(client):
+    ask = lambda text, lang="en": client.post("/api/assistant/chat", json={  # noqa: E731
+        "messages": [{"role": "user", "text": text}], **KB, "lang": lang, "role": "rider"}).json()
+    r = ask("Nearest drinking water")
+    assert r["provider"] == "offline" and "find_nearby" in r["tools_used"] and "away" in r["reply"]
+    assert any(a["type"] == "map" for a in r["actions"])
+    assert "safe" in ask("Is it safe to work now?")["reply"].lower() or ask("Is it safe to work now?")["tools_used"]
+    assert "get_safe_hours" in ask("आज कब आराम करूं?", "hi")["tools_used"]
+    assert "only help" in ask("tell me a joke")["reply"]
+    assert "112" in ask("my friend fainted")["reply"]
+    assert client.get("/api/assistant/info").json()["tools"]
+
+
+def test_bedrock_assistant_tool_loop(client, aws_on, monkeypatch):
+    calls = []
+
+    def fake_converse(system, messages, tools=None, max_tokens=700):
+        calls.append(messages[-1])
+        assert tools and "Delhi" in system
+        if len(calls) == 1:
+            return {"stopReason": "tool_use", "output": {"message": {"role": "assistant", "content": [
+                {"text": "Checking."}, {"toolUse": {"toolUseId": "t1", "name": "find_nearby", "input": {"kinds": ["park"]}}}]}}}
+        res = messages[-1]["content"][0]["toolResult"]
+        assert res["toolUseId"] == "t1" and res["content"][0]["json"]["places"]
+        return {"stopReason": "end_turn", "output": {"message": {"role": "assistant", "content": [
+            {"text": "Shade is 300 m away in the park."}]}}}
+    monkeypatch.setattr(aws_on, "converse", fake_converse)
+    r = client.post("/api/assistant/chat", json={"messages": [{"role": "assistant", "text": "Hi"},
+                                                              {"role": "user", "text": "Where is shade?"}], **KB}).json()
+    assert r["provider"] == "Amazon Bedrock" and r["reply"].startswith("Shade") and r["tools_used"] == ["find_nearby"]
+
+    def broken(*a, **k):
+        raise RuntimeError("AccessDenied")
+    monkeypatch.setattr(aws_on, "converse", broken)
+    r = client.post("/api/assistant/chat", json={"messages": [{"role": "user", "text": "Nearest water"}], **KB}).json()
+    assert r["provider"] == "offline" and r["reply"]
+
+
+def test_polly_voice(client, aws_on, monkeypatch):
+    assert client.post("/api/assistant/speak", json={"text": "Hello"}).status_code == 204   # polly off: browser voice
+    monkeypatch.setattr(aws_on, "FEATURES", aws_on.FEATURES | {"polly"})
+    monkeypatch.setattr(aws_on, "speak", lambda text, lang="en": b"ID3fake-mp3")
+    r = client.post("/api/assistant/speak", json={"text": "नमस्ते", "lang": "hi"})
+    assert r.status_code == 200 and r.headers["content-type"] == "audio/mpeg" and r.content.startswith(b"ID3")
+
+
+def test_mcp_server_over_http(client):
+    h = {"accept": "application/json, text/event-stream", "content-type": "application/json"}
+    r = client.post("/mcp", headers=h, json={"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {
+        "protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "test", "version": "1"}}})
+    assert r.status_code == 200, r.text
+    assert r.json()["result"]["serverInfo"]["name"] == "UrbanShield"
+    names = {t["name"] for t in client.post("/mcp", headers=h, json={"jsonrpc": "2.0", "id": 2, "method": "tools/list"}).json()["result"]["tools"]}
+    assert {"get_conditions", "find_nearby", "plan_route", "simulate_flood"} <= names
+    r = client.post("/mcp", headers=h, json={"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {
+        "name": "find_nearby", "arguments": {"lat": KB["lat"], "lon": KB["lon"], "kinds": ["drinking_water"]}}}).json()
+    assert not r["result"].get("isError") and "drinking_water" in r["result"]["content"][0]["text"]
+
+
+def _browser_keys():
+    """A fake browser subscription: its own P-256 key pair and auth secret, like PushManager makes."""
+    import os
+
+    from cryptography.hazmat.primitives.asymmetric import ec
+
+    from app import push
+    k = ec.generate_private_key(ec.SECP256R1())
+    return k, os.urandom(16), push.b64u(push._raw_public(k.public_key()))
+
+
+def _decrypt(body: bytes, ua_key, auth: bytes) -> bytes:
+    """Receiver side of RFC 8291 / RFC 8188, written independently of app.push.encrypt."""
+    import struct
+
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric import ec
+    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+    from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+    salt, (rs, idlen) = body[:16], struct.unpack("!IB", body[16:21])
+    as_pub = body[21:21 + idlen]
+    ua_pub = ua_key.public_key().public_bytes(serialization.Encoding.X962, serialization.PublicFormat.UncompressedPoint)
+    shared = ua_key.exchange(ec.ECDH(), ec.EllipticCurvePublicKey.from_encoded_point(ec.SECP256R1(), as_pub))
+    hk = lambda salt_, ikm, info, n: HKDF(hashes.SHA256(), n, salt_, info).derive(ikm)  # noqa: E731
+    ikm = hk(auth, shared, b"WebPush: info\x00" + ua_pub + as_pub, 32)
+    plain = AESGCM(hk(salt, ikm, b"Content-Encoding: aes128gcm\x00", 16)).decrypt(
+        hk(salt, ikm, b"Content-Encoding: nonce\x00", 12), body[21 + idlen:], None)
+    assert rs == 4096 and plain.endswith(b"\x02")
+    return plain[:-1]
+
+
+def test_web_push_encryption_and_vapid(client):
+    import base64
+    import json as _json
+
+    from cryptography.hazmat.primitives import hashes
+    from cryptography.hazmat.primitives.asymmetric import ec
+    from cryptography.hazmat.primitives.asymmetric.utils import encode_dss_signature
+
+    from app import push
+    ua, auth, p256dh = _browser_keys()
+    msg = {"title": "Rest now", "body": "छाया 300 m"}
+    body = push.encrypt(_json.dumps(msg, ensure_ascii=False).encode(), p256dh, push.b64u(auth))
+    assert _json.loads(_decrypt(body, ua, auth)) == msg
+    pub = push.public_key()
+    assert len(push.b64u_dec(pub)) == 65 and client.get("/api/push/key").json()["public_key"] == pub
+    tok = push.vapid_jwt("https://fcm.googleapis.com/fcm/send/abc")
+    head, claims, sig = tok.split(".")
+    c = _json.loads(base64.urlsafe_b64decode(claims + "=="))
+    assert c["aud"] == "https://fcm.googleapis.com" and c["sub"].startswith("mailto:")
+    raw = push.b64u_dec(sig)
+    key = ec.EllipticCurvePublicKey.from_encoded_point(ec.SECP256R1(), push.b64u_dec(pub))
+    key.verify(encode_dss_signature(int.from_bytes(raw[:32], "big"), int.from_bytes(raw[32:], "big")),
+               f"{head}.{claims}".encode(), ec.ECDSA(hashes.SHA256()))
+
+
+def test_push_subscribe_test_and_alert_engine(client, mock, monkeypatch):
+    import httpx
+
+    from app import push
+    from app.db import PushSub, SessionLocal
+    from app.services import heat, push_alerts
+    ua, auth, p256dh = _browser_keys()
+    got = []
+
+    def push_service(request):
+        assert request.headers["content-encoding"] == "aes128gcm" and request.headers["authorization"].startswith("vapid t=")
+        got.append(__import__("json").loads(_decrypt(request.content, ua, auth)))
+        return httpx.Response(201)
+    mock.post("https://push.example.org/sub/1").mock(side_effect=push_service)
+    mock.post("https://push.example.org/sub/gone").mock(return_value=httpx.Response(410))
+    sub = {"endpoint": "https://push.example.org/sub/1", "keys": {"p256dh": p256dh, "auth": push.b64u(auth)}}
+    assert client.post("/api/push/subscribe", json={"subscription": sub, **KB, "role": "construction"}).json()["ok"]
+    r = client.post("/api/push/test", json={"endpoint": sub["endpoint"]})
+    assert r.status_code == 200 and got[-1]["title"] and got[-1]["url"].startswith("/")
+
+    asyncio.run(push_alerts.run_once())   # forwards any new official alert first (highest priority)
+
+    # force "unsafe now" and check the engine sends one rest alert with nearby shade or water, then stays quiet
+    real = heat.safe_hours
+
+    def unsafe(ward, role, day_offset=0):
+        out = real(ward, role, day_offset)
+        now = {**(out["now"] or out["hours"][0]), "category": "unsafe", "hour": 13, "feels_like": 47}
+        return {**out, "now": now, "rest_until": "5:00 PM"}
+    monkeypatch.setattr(heat, "safe_hours", unsafe)
+    monkeypatch.setattr(push_alerts, "city_now", lambda: __import__("datetime").datetime(2026, 5, 20, 13, 5))
+    n0 = len(got)
+    asyncio.run(push_alerts.run_once())
+    assert len(got) == n0 + 1 and got[-1]["kind"] == "rest" and "5:00 PM" in got[-1]["body"]
+    assert "Shade" in got[-1]["body"] or "Water" in got[-1]["body"]
+    asyncio.run(push_alerts.run_once())
+    assert len(got) == n0 + 1   # announced once, not every run
+
+    # heat eases: one "safe to resume"
+    monkeypatch.setattr(heat, "safe_hours", real)
+    monkeypatch.setattr(push_alerts.heat, "safe_hours", lambda w, r, d=0: {**real(w, r, d), "now": {
+        **(real(w, r, d)["now"] or real(w, r, d)["hours"][0]), "category": "caution", "hour": 17}})
+    asyncio.run(push_alerts.run_once())
+    assert got[-1]["kind"] == "resume"
+
+    # a dead subscription is switched off
+    client.post("/api/push/subscribe", json={"subscription": {**sub, "endpoint": "https://push.example.org/sub/gone"}, **KB})
+    with SessionLocal() as s:
+        dead = s.query(PushSub).filter_by(endpoint="https://push.example.org/sub/gone").one()
+        dead.state = {"heat_cat": "safe"}
+        s.commit()
+    asyncio.run(push_alerts.run_once())
+    with SessionLocal() as s:
+        assert s.query(PushSub).filter_by(endpoint="https://push.example.org/sub/gone").one().active is False
+    assert client.request("DELETE", "/api/push/subscribe", json={"endpoint": sub["endpoint"]}).json()["ok"]

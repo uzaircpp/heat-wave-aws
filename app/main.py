@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 from contextlib import asynccontextmanager
 
@@ -13,8 +14,9 @@ from fastapi.staticfiles import StaticFiles
 from .config import settings
 from .data import city
 from .db import init_db
-from .routers import ai, ops, public, reports
-from .services import alerts
+from .mcp_server import http_app as mcp_http_app, mcp
+from .routers import ai, assistant, ops, public, push, reports
+from .services import alerts, push_alerts
 from .services.weather import weather
 from .sources.http import close_client
 
@@ -36,6 +38,11 @@ async def _weather_then_alerts():
     await alerts.refresh()
 
 
+async def _push_alerts():
+    if weather.ready:
+        await push_alerts.run_once()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
@@ -44,7 +51,10 @@ async def lifespan(app: FastAPI):
     if settings.run_background_jobs:
         tasks.append(asyncio.create_task(_loop("weather", settings.weather_refresh_s, weather.refresh)))
         tasks.append(asyncio.create_task(_loop("alerts", settings.alerts_refresh_s, _weather_then_alerts)))
-    yield
+        tasks.append(asyncio.create_task(_loop("push", settings.push_check_s, _push_alerts)))
+    mgr = mcp.session_manager   # can only start once per process (tests open the app more than once)
+    async with (mgr.run() if not getattr(mgr, "_has_started", False) else contextlib.nullcontext()):
+        yield
     for t in tasks:
         t.cancel()
     await close_client()
@@ -59,6 +69,9 @@ app.include_router(public.router)
 app.include_router(reports.router)
 app.include_router(ops.router)
 app.include_router(ai.router)
+app.include_router(assistant.router)
+app.include_router(push.router)
+app.router.routes.extend(mcp_http_app.routes)   # MCP server (streamable HTTP) at /mcp
 
 
 @app.get("/api/photos/{name}", include_in_schema=False)
@@ -80,5 +93,8 @@ def photo(name: str):
     return FileResponse(path, media_type="image/jpeg")
 
 
+import mimetypes  # noqa: E402
+
+mimetypes.add_type("application/manifest+json", ".webmanifest")
 if settings.web_dir.exists():
     app.mount("/", StaticFiles(directory=settings.web_dir, html=True), name="web")

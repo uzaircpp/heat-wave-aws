@@ -10,7 +10,7 @@ def icon(n):
     sv=open(IC+n+'.svg').read().strip()
     return sv.replace('<svg ','<svg class="ic" aria-hidden="true" ',1)
 s=re.sub(r'\{\{i:([a-z0-9-]+)\}\}',lambda m:icon(m.group(1)),s)
-used=['thermometer','warning-circle','drop','buildings','check','cloud-rain','sun','cloud-sun','map-pin','plus','minus','crosshair','house','flag','lock-simple','arrow-right','umbrella-simple','tree-evergreen']
+used=['thermometer','warning-circle','drop','buildings','check','cloud-rain','sun','cloud-sun','map-pin','plus','minus','crosshair','house','flag','lock-simple','arrow-right','umbrella-simple','tree-evergreen','chat-circle-dots','microphone','paper-plane-right','speaker-high','speaker-slash','x','bell','bell-ringing']
 s=s.replace('__ICONS__',json.dumps({n:icon(n) for n in used}))
 s=s.replace('__DELHI__',open(D+'data/delhi.json').read())
 ph={k:'data:image/jpeg;base64,'+base64.b64encode(open(D+'photos/'+k+'.jpg','rb').read()).decode() for k in ['worker','commuter','officer','planner']}

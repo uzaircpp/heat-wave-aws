@@ -88,7 +88,7 @@
     hideBanner();store('us_loc_ok',1);
     if(!w){locChip();if(announce)toast('You seem to be outside Delhi. Showing '+wname()+'; pick a ward to change it');return;}
     if(!prev||prev.i!==w.i){var follow=!prev||prev.i===S.wardId||announce;if(follow){setWard(w.i,true);toast(prev?'You are now in '+w.name:'Showing your area: '+w.name);}}
-    locChip();if(window.__mapYou)window.__mapYou(S.loc,!prev||prev.i!==w.i);if(inited.safe&&window.__safeLoad&&atUser()&&!prev)window.__safeLoad();}
+    locChip();if(!prev||prev.i!==w.i)pushSync();if(window.__mapYou)window.__mapYou(S.loc,!prev||prev.i!==w.i);if(inited.safe&&window.__safeLoad&&atUser()&&!prev)window.__safeLoad();}
   function locate(announce){if(!navigator.geolocation){toast('This browser cannot share location');return;}
     if(announce)chipB.classList.add('busy');
     navigator.geolocation.getCurrentPosition(function(p){chipB.classList.remove('busy');locState='granted';applyLoc(p,announce);watchLoc();},
@@ -112,7 +112,7 @@
   fresh($('#bellBtn')).addEventListener('click',function(){openTab('dash');var n=S.alerts.length;toast(n?n+' active alert'+(n>1?'s':'')+' for Delhi':'No active alerts right now');});
   var clockEl=$('#clock');function tick(){clockEl.textContent=new Date().toLocaleString('en-IN',{weekday:'short',day:'numeric',month:'short',hour:'numeric',minute:'2-digit',timeZone:TZ}).replace(/\s?(am|pm)$/i,function(x){return ' '+x.trim().toUpperCase();});}
   setInterval(tick,15000);
-  function onWard(){loadHistory();youCard();if(inited.safe&&window.__safeLoad)window.__safeLoad();if(inited.fc)INIT.fc();if(inited.ops&&window.__opsLoad)window.__opsLoad();
+  function onWard(){pushSync();loadHistory();youCard();if(inited.safe&&window.__safeLoad)window.__safeLoad();if(inited.fc)INIT.fc();if(inited.ops&&window.__opsLoad)window.__opsLoad();
     if(inited.report&&window.__pinWard)window.__pinWard();}
 
   /* ---------- dashboard ---------- */
@@ -302,13 +302,13 @@
         b.innerHTML=ic(PIC[p.kind]||'map-pin')+'<span><b>'+esc(p.name)+'</b><small>'+esc((PK[p.kind]||'')+', '+km(p.distance_m)+(p.opening_hours?' · '+p.opening_hours:''))+'</small></span>'+ic('arrow-right');
         b.onclick=function(){openTab('map',{after:function(){setTimeout(function(){window.__liveFocus&&window.__liveFocus(p);},60);}});};row.appendChild(b);});
       if(A&&!reduce)A.animate('#hstrip .hc',{opacity:[0,1],translateY:[10,0],duration:500,ease:'outExpo',delay:A.stagger(25)});}
-    segBind($('.seg3'),function(b){role=b.dataset.role;load();});
+    segBind($('.seg3'),function(b){role=b.dataset.role;S.role=RM[role];load();pushSync();});
     var timer=null,btn=fresh($('#remindBtn'));btn.onclick=function(){
       if(timer){clearInterval(timer);timer=null;btn.querySelector('span').textContent='Set break reminders';toast('Break reminders off');return;}
       function startR(n){timer=setInterval(function(){var msg='Rest 10 minutes in shade and drink a cup of water.';if(n)try{new Notification('UrbanShield break',{body:msg});}catch(e){}toast(msg);},60*60*1000);
         btn.querySelector('span').textContent='Reminders on';toast(n?'You will get a notification every hour while this page is open':'Reminders on. Keep this page open to get them');}
       if('Notification' in window&&Notification.permission!=='denied')Notification.requestPermission().then(function(p){startR(p==='granted');});else startR(false);};
-    window.__safeLoad=load;load();
+    window.__safeLoad=load;load();pushSetup();
   };
 
   /* ---------- Report ---------- */
@@ -416,6 +416,7 @@
       var hz=[];R.alternatives.forEach(function(x){x.hazards.forEach(function(z){if(hz.indexOf(z.name.split(',')[0])<0)hz.push(z.name.split(',')[0]);});});
       var txt='UrbanShield route from '+ends.from.name+' to '+ends.to.name+': '+(via?'via '+via+', ':'')+Math.round(a.duration_s/60)+' min.'+(hz.length?' Flooding reported at '+hz.slice(0,3).join(', ')+'.':' No flooding reported on the way.');
       if(navigator.share)navigator.share({text:txt}).catch(function(){});else if(navigator.clipboard)navigator.clipboard.writeText(txt).then(function(){toast('Copied, paste it anywhere');},function(){toast(txt);});else toast(txt);};
+    window.__routeSet=function(a,b){pickEnd('from',a);pickEnd('to',b);};
     window.__routeTo=function(r){if(r&&r.lat){setAlert('',r.sev==='info'?'Selected place':'Avoid this spot',r.title,(r.desc||'')+' Routes below are checked against it.');}fromI.focus();};
   };
 
@@ -498,14 +499,105 @@
       if(M&&!reduce)$$('.fc-day').forEach(function(d,i){M.animate(d,{opacity:[0,1],y:[24,0]},{type:'spring',stiffness:220,damping:22,delay:i*.06});});
     }).catch(function(e){$('#fcRow').innerHTML='<p class="empty">'+esc(e.message)+'</p>';});};
 
+
+  /* ---------- Push alerts (Web Push, works with the browser closed) ---------- */
+  var PUSH_OK=('serviceWorker' in navigator)&&('PushManager' in window)&&window.isSecureContext&&API===location.origin;
+  var IOS=/iphone|ipad|ipod/i.test(navigator.userAgent),STANDALONE=matchMedia('(display-mode: standalone)').matches||navigator.standalone;
+  function b64key(s){var p='='.repeat((4-s.length%4)%4),b=atob((s+p).replace(/-/g,'+').replace(/_/g,'/')),a=new Uint8Array(b.length);for(var i=0;i<b.length;i++)a[i]=b.charCodeAt(i);return a;}
+  function swReg(){return navigator.serviceWorker.register('sw.js',{scope:'./'}).then(function(){return navigator.serviceWorker.ready;});}
+  function pushBody(sub){var b={subscription:sub.toJSON(),ward_id:S.wardId,role:S.role||'rider',lang:store('us_lang')||'en'};
+    if(S.loc&&userWard()){b.lat=S.loc.lat;b.lon=S.loc.lon;}return b;}
+  function curSub(){if(!PUSH_OK)return Promise.resolve(null);return navigator.serviceWorker.getRegistration('./').then(function(r){return r?r.pushManager.getSubscription():null;});}
+  var pushSync=debounce(function(){if(!store('us_push'))return;curSub().then(function(sub){if(sub)post('/api/push/subscribe',pushBody(sub)).catch(function(){});});},1500);
+  function pushOn(){if(IOS&&!STANDALONE){modal('Alerts on iPhone','<p>On iPhone, alerts work once UrbanShield is on your home screen. Tap the Share button in Safari, choose <b>Add to Home Screen</b>, open UrbanShield from there and turn alerts on again.</p>',[{label:'OK',primary:true}]);return Promise.reject(new Error('ios'));}
+    return Notification.requestPermission().then(function(p){if(p!=='granted')throw new Error(p==='denied'?'Notifications are blocked for this site. Allow them in the browser settings.':'Notifications not allowed');
+      return Promise.all([swReg(),get('/api/push/key')]);}).then(function(a){var reg=a[0];
+      return reg.pushManager.getSubscription().then(function(old){return old||reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:b64key(a[1].public_key)});});})
+      .then(function(sub){return post('/api/push/subscribe',pushBody(sub)).then(function(){store('us_push',true);return sub;});});}
+  function pushOff(){return curSub().then(function(sub){store('us_push',false);if(!sub)return;var ep=sub.endpoint;return sub.unsubscribe().then(function(){return get('/api/push/subscribe',{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({endpoint:ep})});});});}
+  function pushTest(){return curSub().then(function(sub){if(!sub)throw new Error('Alerts are off');return post('/api/push/test',{endpoint:sub.endpoint});});}
+  function pushSetup(){var rb=$('#remindBtn');if(!rb||$('#pushRow'))return;
+    var row=document.createElement('div');row.className='push-row';row.id='pushRow';rb.parentNode.insertBefore(row,rb);rb.remove();
+    function draw(on){if(!PUSH_OK){row.innerHTML='<small>Phone alerts need the app opened from its own address over HTTPS.</small>';return;}
+      row.innerHTML=on?'<button class="btn btn-ghost sm" type="button" data-a="test">'+ic('bell-ringing')+'<span>Alerts on · send a test</span></button><button class="txt-btn" type="button" data-a="off">Turn off</button><small>You will be told when to rest, when it is safe again, before heavy rain, and about official warnings for '+(atUser()?'where you are':esc(wname()))+'. Quiet from 10 PM to 6 AM except emergencies.</small>'
+        :'<button class="btn btn-primary sm" type="button" data-a="on">'+ic('bell')+'<span>Get alerts on this phone</span></button><small>Rest reminders, heavy-rain and official warnings, even with the app closed. No sign-up, no phone number.</small>';}
+    row.onclick=function(e){var b=e.target.closest('button');if(!b)return;var a=b.dataset.a;b.disabled=true;
+      (a==='on'?pushOn().then(function(){draw(true);toast('Alerts on. Sending a test now');return pushTest();}):a==='off'?pushOff().then(function(){draw(false);toast('Alerts off');}):pushTest().then(function(r){toast('Test sent: '+r.message.title);}))
+        .catch(function(er){if(er.message==='ios')return;var m=er.message||'';toast(/Registration failed|push service|AbortError|not supported/i.test(m+er.name)?'This browser cannot receive push alerts here. Try Chrome, Edge or Firefox in a normal (not private) window.':m);}).then(function(){b.disabled=false;});};
+    draw(false);curSub().then(function(sub){draw(!!sub&&store('us_push')!==false);if(sub)pushSync();}).catch(function(){});}
+
+  /* ---------- Assistant: chat and voice over the app's live data ---------- */
+  function assistant(){
+    var lang=store('us_lang')||'en',mute=!!store('us_mute'),hist=[],busy=false,info=null,audio=null,rec=null,greeted=false;
+    var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+    var T={en:{title:'Ask UrbanShield',ph:'Ask about heat, rain, water, routes',hello:'Hi! Ask me if it is safe to work now, where the nearest water or shade is, or which roads are flooded. Tap the mic to talk, in English or Hindi.',listen:'Listening…',fail:'Sorry, I could not answer that: '},
+           hi:{title:'UrbanShield से पूछें',ph:'गर्मी, बारिश, पानी, रास्ते के बारे में पूछें',hello:'नमस्ते! पूछिए: क्या अभी काम करना सुरक्षित है, सबसे पास पानी या छाया कहां है, या कौन सी सड़क पर पानी भरा है। बोलने के लिए माइक दबाएं।',listen:'सुन रहा हूं…',fail:'माफ़ कीजिए, जवाब नहीं मिल सका: '}};
+    var fab=document.createElement('button');fab.type='button';fab.className='ask-fab';fab.setAttribute('aria-label','Ask UrbanShield');fab.innerHTML=ic('chat-circle-dots')+'<span>Ask</span>';
+    var pn=document.createElement('div');pn.className='ask-panel';pn.hidden=true;pn.setAttribute('role','dialog');pn.setAttribute('aria-label','UrbanShield assistant');
+    pn.innerHTML='<div class="ask-h"><div><b id="askT"></b><small id="askProv">Live Delhi data</small></div><div class="ask-tools"><button type="button" class="ask-lang" id="askLang"></button><button type="button" class="ask-ib" id="askSpk"></button><button type="button" class="ask-ib" id="askX" aria-label="Close">'+ic('x')+'</button></div></div>'+
+      '<div class="ask-log" id="askLog" aria-live="polite"></div><div class="ask-chips" id="askChips"></div>'+
+      '<form class="ask-in" id="askForm"><button type="button" class="ask-mic" id="askMic" aria-label="Talk">'+ic('microphone')+'</button><input id="askTxt" autocomplete="off" maxlength="500" enterkeyhint="send"><button type="submit" class="ask-send" aria-label="Send">'+ic('paper-plane-right')+'</button></form>';
+    document.body.appendChild(fab);document.body.appendChild(pn);
+    var log=$('#askLog'),inp=$('#askTxt'),mic=$('#askMic'),chips=$('#askChips'),spk=$('#askSpk');
+    if(!SR)mic.hidden=true;
+    function labels(){$('#askT').textContent=T[lang].title;inp.placeholder=T[lang].ph;$('#askLang').textContent=lang==='hi'?'हिं':'EN';$('#askLang').setAttribute('aria-label',lang==='hi'?'Switch to English':'हिंदी में बदलें');
+      spk.innerHTML=ic(mute?'speaker-slash':'speaker-high');spk.classList.toggle('off',mute);spk.setAttribute('aria-label',mute?'Voice replies off':'Voice replies on');
+      var sg=(info&&info.suggestions&&info.suggestions[lang])||[];chips.innerHTML='';sg.forEach(function(q){var b=document.createElement('button');b.type='button';b.textContent=q;b.onclick=function(){send(q,false);};chips.appendChild(b);});}
+    function scroll(){log.scrollTop=log.scrollHeight;}
+    function bubble(role,text,cls){var d=document.createElement('div');d.className='ask-msg '+role+(cls?' '+cls:'');d.textContent=text;log.appendChild(d);scroll();return d;}
+    function open(){pn.hidden=false;fab.classList.add('open');if(!greeted){greeted=true;bubble('bot',T[lang].hello);}setTimeout(function(){if(matchMedia('(pointer:fine)').matches)inp.focus();},250);}
+    function close(){pn.hidden=true;fab.classList.remove('open');stopVoice();if(rec)rec.abort();}
+    fab.onclick=open;$('#askX').onclick=close;
+    document.addEventListener('keydown',function(e){if(e.key==='Escape'&&!pn.hidden)close();});
+    $('#askLang').onclick=function(){lang=lang==='hi'?'en':'hi';store('us_lang',lang);labels();pushSync();};
+    spk.onclick=function(){mute=!mute;store('us_mute',mute);if(mute)stopVoice();labels();};
+    get('/api/assistant/info').then(function(r){info=r;$('#askProv').textContent=(r.provider==='offline'?'Live Delhi data':'Live Delhi data · '+r.provider)+(r.voice!=='browser'?' · '+r.voice:'');labels();}).catch(function(){labels();});
+    labels();
+
+    function stopVoice(){if(audio){audio.pause();audio=null;}if(window.speechSynthesis)speechSynthesis.cancel();}
+    function browserSay(text,l){if(!window.speechSynthesis)return;var u=new SpeechSynthesisUtterance(text);u.lang=l==='hi'?'hi-IN':'en-IN';
+      var vs=speechSynthesis.getVoices(),v=vs.filter(function(x){return x.lang===u.lang;})[0]||vs.filter(function(x){return x.lang&&x.lang.indexOf(l==='hi'?'hi':'en-IN')===0;})[0];if(v)u.voice=v;u.rate=1;speechSynthesis.speak(u);}
+    function say(text,l){stopVoice();if(info&&info.voice&&info.voice!=='browser'){
+        fetch(API+'/api/assistant/speak',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:text.slice(0,1400),lang:l})}).then(function(r){
+          if(r.status!==200)throw 0;return r.blob();}).then(function(b){audio=new Audio(URL.createObjectURL(b));return audio.play();}).catch(function(){browserSay(text,l);});}
+      else browserSay(text,l);}
+
+    function doAction(a){if(a.type==='directions'){window.open(a.url,'_blank','noopener');return;}
+      var cmd=document.getElementById('command');if(cmd)cmd.scrollIntoView({behavior:'smooth',block:'start'});if(matchMedia('(max-width:767px)').matches)close();
+      if(a.type==='map')openTab('map',{after:function(){setTimeout(function(){window.__liveFocus&&window.__liveFocus({name:a.name,lat:a.lat,lon:a.lon,kind:'drinking_water'});},80);}});
+      else if(a.type==='route')openTab('route',{after:function(){setTimeout(function(){window.__routeSet&&window.__routeSet({lat:a.from[0],lon:a.from[1],name:a.from_name},{lat:a.to[0],lon:a.to[1],name:a.to_name});},80);}});
+      else if(a.type==='screen')openTab(a.screen);}
+    function botReply(r,spoken){var d=bubble('bot',r.reply);
+      if(r.actions&&r.actions.length){var acts=document.createElement('div');acts.className='ask-acts';r.actions.forEach(function(a){var b=document.createElement('button');b.type='button';
+        b.innerHTML=ic(a.type==='map'?'map-pin':a.type==='directions'?'arrow-right':a.type==='route'?'flag':'arrow-right')+'<span>'+esc(a.label)+'</span>';b.onclick=function(){doAction(a);};acts.appendChild(b);});d.appendChild(acts);}
+      var meta=document.createElement('div');meta.className='ask-meta';var pb=document.createElement('button');pb.type='button';pb.setAttribute('aria-label','Read aloud');pb.innerHTML=ic('speaker-high');pb.onclick=function(){say(r.reply,r.lang);};meta.appendChild(pb);
+      var src=document.createElement('span');src.textContent=(r.tools_used&&r.tools_used.length?'From live data':'')+(r.provider&&r.provider!=='offline'?' · '+r.provider:'');meta.appendChild(src);d.appendChild(meta);scroll();
+      if(spoken&&!mute)say(r.reply,r.lang);}
+    function send(text,spoken){text=(text||'').trim();if(!text||busy)return;busy=true;inp.value='';if(!greeted){greeted=true;}
+      bubble('user',text);hist.push({role:'user',text:text});var wait=document.createElement('div');wait.className='ask-msg bot';wait.innerHTML='<span class="ask-dots"><i></i><i></i><i></i></span>';log.appendChild(wait);scroll();
+      var body={messages:hist.slice(-10),ward_id:S.wardId,role:S.role||'rider',lang:lang};if(S.loc&&userWard()){body.lat=+S.loc.lat.toFixed(5);body.lon=+S.loc.lon.toFixed(5);}
+      get('/api/assistant/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),timeout:45000}).then(function(r){wait.remove();hist.push({role:'assistant',text:r.reply});botReply(r,spoken);})
+        .catch(function(e){wait.remove();hist.pop();bubble('bot',T[lang].fail+e.message,'err');}).then(function(){busy=false;});}
+    $('#askForm').onsubmit=function(e){e.preventDefault();send(inp.value,false);};
+    mic.onclick=function(){if(rec){rec.stop();return;}stopVoice();rec=new SR();rec.lang=lang==='hi'?'hi-IN':'en-IN';rec.interimResults=true;rec.maxAlternatives=1;var finalT='';
+      rec.onstart=function(){mic.classList.add('on');inp.value='';inp.placeholder=T[lang].listen;};
+      rec.onresult=function(e){var t='';finalT='';for(var i=0;i<e.results.length;i++){t+=e.results[i][0].transcript;if(e.results[i].isFinal)finalT+=e.results[i][0].transcript;}inp.value=t;};
+      rec.onerror=function(e){if(e.error==='not-allowed')toast('Allow the microphone to talk to the assistant');else if(e.error!=='no-speech'&&e.error!=='aborted')toast('Voice input failed: '+e.error);};
+      rec.onend=function(){mic.classList.remove('on');inp.placeholder=T[lang].ph;rec=null;var t=(finalT||inp.value).trim();if(t)send(t,true);};
+      try{rec.start();}catch(e){rec=null;toast('Voice input is not available');}};
+    window.__ask=function(q){open();if(q)send(q,false);};
+  }
+
   /* ---------- boot ---------- */
   setChip('','Connecting');
   function waitWeather(tries){return get('/api/health',{timeout:8000}).then(function(h){if(h.weather&&h.weather.ready)return h;if(tries>40)throw new Error('weather not ready');setChip('','Loading weather');
     return new Promise(function(res){setTimeout(res,3000);}).then(function(){return waitWeather(tries+1);});});}
   waitWeather(0).then(function(){
-    window.__live=true;tick();wardTexts();startLocation();
+    window.__live=true;tick();wardTexts();startLocation();assistant();
+    if(PUSH_OK&&store('us_push'))swReg().catch(function(){});
+    try{var go=new URLSearchParams(location.search).get('go');if(go){var cmd=document.getElementById('command');setTimeout(function(){if(cmd)cmd.scrollIntoView({block:'start'});openTab(go);},400);}}catch(e){}
     $('#legalSrc').textContent='Live data: Open-Meteo (CC BY 4.0), OpenStreetMap (ODbL), NDMA SACHET, DataMeet wards. Earth imagery: NASA.';
-    get('/api/meta').then(function(m){S.meta=m;var a=m.aws||{},on=[];if(a.s3_photos)on.push('S3');if(a.rekognition)on.push('Rekognition');if(a.translate)on.push('Translate');if(a.bedrock)on.push('Bedrock');if(a.location)on.push('Location Service');
+    get('/api/meta').then(function(m){S.meta=m;var a=m.aws||{},on=[];if(a.s3_photos)on.push('S3');if(a.rekognition)on.push('Rekognition');if(a.translate)on.push('Translate');if(a.bedrock)on.push('Bedrock');if(a.location)on.push('Location Service');if(a.polly)on.push('Polly');
       if(on.length)$('#legalSrc').textContent='Running on AWS ('+a.region+'): '+on.join(', ')+'. Data: Open-Meteo, OpenStreetMap, NDMA SACHET, ESA WorldCover. Earth imagery: NASA.';}).catch(function(){});
     get('/api/wards/attributes').then(function(a){if(a.landcover_source==='worldcover'){S.attrs=a.wards;var tl=$('#treeLay');if(tl)tl.hidden=false;}}).catch(function(){});
     return Promise.all([loadDash(),loadAlerts(),loadReports()]).then(function(){setChip('on','Live');loadHistory();stream();

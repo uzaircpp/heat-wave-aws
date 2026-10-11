@@ -105,6 +105,35 @@ class AlertLog(Base):
     data: Mapped[dict] = mapped_column(JSON, default=dict)
 
 
+class PushSub(Base):
+    """A browser or phone that turned on push alerts (Web Push). Holds no name or number: just the push
+    endpoint from the browser, the ward or rough position to watch, and the type of work."""
+
+    __tablename__ = "push_subs"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    endpoint: Mapped[str] = mapped_column(String(1000), unique=True)
+    p256dh: Mapped[str] = mapped_column(String(200))
+    auth: Mapped[str] = mapped_column(String(64))
+    ward_id: Mapped[int | None] = mapped_column(Integer, index=True)
+    lat: Mapped[float | None] = mapped_column(Float)
+    lon: Mapped[float | None] = mapped_column(Float)
+    role: Mapped[str] = mapped_column(String(16), default="rider")
+    lang: Mapped[str] = mapped_column(String(4), default="en")
+    state: Mapped[dict] = mapped_column(JSON, default=dict)   # last sent per kind, for throttling
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    fails: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class AppSetting(Base):
+    """Small server-wide values that must survive restarts, such as the Web Push (VAPID) key pair."""
+
+    __tablename__ = "app_settings"
+    key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    value: Mapped[str] = mapped_column(Text)
+
+
 engine = create_engine(
     settings.database_url,
     connect_args={"check_same_thread": False} if settings.database_url.startswith("sqlite") else {},

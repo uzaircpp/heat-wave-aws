@@ -12,3 +12,7 @@ numpy>=1.26
 # Postgres (optional, for DATABASE_URL=postgresql+psycopg://...)
 psycopg[binary]>=3.2
 boto3>=1.35
+# Web Push encryption and VAPID signing (written on the standard library, no pywebpush needed)
+cryptography>=42
+# MCP server (FastMCP, stable 1.x API)
+mcp>=1.10,<2

@@ -4,11 +4,12 @@
 
 UrbanShield turns live weather, satellite land cover, terrain and citizen reports into ward-level warnings:
 safe working hours for outdoor workers, a flood simulator, flood-aware routes, a citizen reporting app with
-photo verification, and a ward-officer console with AI-drafted alerts in English and Hindi.
+photo verification, a ward-officer console with AI-drafted alerts in English and Hindi, a chat and voice
+assistant, an MCP server over the same data, and push alerts that reach a phone even with the app closed.
 
 - `app/` – FastAPI backend (Python)  ·  `web/` – the built website  ·  `frontend/` – website source
 - `scripts/prepare_data.py` – builds the city data from open sources  ·  `deploy/` – one-command AWS deploy
-- `tests/` – 28 end-to-end tests (all external services faked)
+- `tests/` – 35 end-to-end tests (all external services faked)
 
 ## Architecture on AWS
 
@@ -22,8 +23,11 @@ flowchart LR
   EB --> CW["CloudWatch Logs"]
   EB --> RK["Rekognition\nphoto check"]
   EB --> TR["Translate\nHindi alerts"]
-  EB --> BR["Bedrock\nAI drafts, briefings"]
+  EB --> BR["Bedrock\nassistant, AI drafts, briefings"]
   EB --> LOC["Location Service\nflood-avoiding routes"]
+  EB --> PO["Polly\nvoice replies"]
+  EB -->|Web Push| PH["Phones and browsers\nalerts with app closed"]
+  AI["MCP clients\n(Claude, agents)"] -->|/mcp| CF
   WC[("AWS Open Data\nESA WorldCover")] -.->|tree cover, at deploy| EB
   EB --> OM["Open-Meteo\nweather"]
   EB --> SA["NDMA SACHET\nofficial alerts"]
@@ -60,6 +64,9 @@ It also serves the website from `web/`, so one deploy gives you the site and the
 | Officer queue, fix times, CSV export | Your own database, every status change logged | Officer token you choose |
 | Broadcasts | Live app feed for everyone, English + Hindi (Amazon Translate); SMS / WhatsApp through Twilio | Twilio, optional |
 | AI alert drafts and officer briefings | Amazon Bedrock (Claude or Amazon Nova), grounded in the live numbers; officer reviews before sending | AWS only |
+| Chat and voice assistant | Amazon Bedrock tool use over the app's own data, Amazon Polly voice (Kajal, Indian English and Hindi); a rule-based assistant over the same tools without AWS | No (AWS for the AI and voice) |
+| MCP server | The same tools for any MCP client, at `/mcp` (streamable HTTP) or `python -m app.mcp_server` (stdio) | No |
+| Push alerts | Web Push (VAPID, RFC 8291 encryption), no Firebase account: rest now, safe again, heavy rain, official warnings | No |
 
 Two parts are models, and the API says so in each response: the **flood simulator** ranks wards from
 real terrain, land cover and rainfall (a screening model, not a hydraulic simulation), and the **heat
@@ -139,12 +146,58 @@ Public
 - `POST /api/reports` (multipart: kind, lat, lon, depth, description, photo), `GET /api/reports`, `GET /api/reports/{ref}`
 - `POST /api/subscribe` `{phone, lat, lon, audiences, whatsapp}`, `DELETE /api/subscribe?phone=`
 - `GET /api/stream` (Server-Sent Events: `report`, `alert`, `broadcast`)
+- `POST /api/assistant/chat` `{messages:[{role,text}], lat, lon, ward_id, role, lang: en|hi}`, `GET /api/assistant/info`
+- `POST /api/assistant/speak` `{text, lang}` (MP3 from Amazon Polly; 204 when Polly is off)
+- `GET /api/push/key`, `POST /api/push/subscribe` `{subscription, ward_id, lat, lon, role, lang}`, `DELETE /api/push/subscribe` `{endpoint}`, `POST /api/push/test` `{endpoint}`
+- `POST /mcp` (MCP, streamable HTTP)
 
 Officer (header `Authorization: Bearer <OFFICER_TOKEN>`)
 - `PATCH /api/reports/{id}` `{status, assignee, severity}`
 - `GET /api/ops/summary`, `GET /api/ops/export.csv`
 - `POST /api/broadcasts` `{message, ward_id, audiences, channels}`, `GET /api/broadcasts`
 - `GET /api/simulate/flood/calibration?rain_mm=80` (how well the flood model matches real reports)
+
+## Assistant, MCP server and push alerts
+
+**Assistant (chat and voice).** The **Ask** button on the site opens a chat. Type, tap a suggestion, or tap
+the mic and speak in English or Hindi (the browser turns speech into text). The server answers from eight
+tools over live data: conditions now, safe hours, nearest water/shade/shelter, alerts, the 7-day forecast,
+flood-aware routes, the flood what-if and place lookup (`app/tools.py`). On AWS, Amazon Bedrock decides which
+tools to call and writes a short answer; Amazon Polly reads it aloud. Without AWS, a rule-based assistant calls
+the same tools, so it works on a laptop. Answers come with buttons that open the right screen (place on the
+map, the planned route, safe hours). Questions outside heat, rain, flooding and safety are declined, and
+heat-illness symptoms get "stop, cool down, call 112 or 108".
+
+**MCP server.** The same tools, read-only, for Claude Desktop, Claude Code or any agent:
+
+- Remote: `https://<your-site>/mcp` (streamable HTTP). In Claude Desktop, add it as a custom connector, or:
+  ```json
+  {"mcpServers": {"urbanshield": {"command": "npx", "args": ["-y", "mcp-remote", "https://<your-site>/mcp"]}}}
+  ```
+- Local (stdio), from this folder: 
+  ```json
+  {"mcpServers": {"urbanshield": {"command": "python", "args": ["-m", "app.mcp_server"], "cwd": "<path to this folder>"}}}
+  ```
+
+**Push alerts.** In **Safe hours**, *Get alerts on this phone* asks for notification permission and subscribes
+the browser (Web Push, works in Chrome, Edge, Firefox and Safari on iPhone once the site is added to the Home
+Screen). No account or phone number: the server keeps only the browser's push address, the ward or position
+rounded to about 100 m, the type of work and language. Every 5 minutes it checks each phone and sends at most
+one message, most important first:
+
+| Alert | When |
+|---|---|
+| Official warning | a new critical NDMA / IMD alert for Delhi |
+| Rest now | heat turns unsafe for that type of work, with the nearest shade and water and how far |
+| Heavy rain | 15 mm or more in the next 3 hours, naming the nearest underpass to avoid |
+| Safe to resume | heat eases from unsafe |
+| Heads-up | heat turns unsafe within the hour |
+| Strong sun | strong sunshine in a ward with little tree cover |
+
+Each kind is throttled, it is quiet from 10 PM to 6 AM except official, rest and rain alerts, and officer
+broadcasts are pushed too. Tapping an alert opens the right screen, or walking directions to the shade.
+The server signs pushes with its own VAPID key, created once and stored in the database (or set
+`VAPID_PRIVATE_KEY`). Push needs HTTPS (CloudFront provides it) or `localhost`.
 
 ## Limits to know before going public
 
@@ -184,7 +237,8 @@ officer token. Run it again after code changes to update. `bash deploy/aws_logs.
 | Amazon CloudWatch Logs | server logs, 7-day retention |
 | Amazon Rekognition | checks report photos: blocks unsafe images, marks photos that show water as verified |
 | Amazon Translate | broadcasts go out in English and Hindi |
-| Amazon Bedrock | drafts alerts and 72-hour officer briefings from live data (officer reviews before sending) |
+| Amazon Bedrock | the chat assistant (tool use over live data), alert drafts and 72-hour officer briefings |
+| Amazon Polly | speaks the assistant's answers in Indian English and Hindi (neural voice Kajal) |
 | Amazon Location Service | road routes, including one that avoids every flooded spot; address search |
 | AWS Open Data (ESA WorldCover) | satellite tree and built-up cover per ward |
 | IAM | least-privilege role for the server |

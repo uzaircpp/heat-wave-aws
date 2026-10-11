@@ -47,6 +47,11 @@ async def broadcast(s: Session, *, actor: str, message: str, ward_id: int | None
     if "app" in channels:
         bus.publish("broadcast", {"message": message, "message_hi": message_hi, "ward_id": ward_id,
                                   "audiences": audiences})
+        try:
+            from . import push_alerts
+            detail["push_delivered"] = await push_alerts.broadcast(s, message, message_hi, ward_id)
+        except Exception as e:  # noqa: BLE001 - the app feed already has it
+            log.warning("push broadcast failed: %s", e)
     text = message + (f"\n\n{message_hi}" if message_hi else "")
     targets = []
     if ("sms" in channels and avail["sms"]) or ("whatsapp" in channels and avail["whatsapp"]):

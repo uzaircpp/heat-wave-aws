@@ -91,6 +91,7 @@ cat > /tmp/app-policy.json <<JSON
  {"Sid":"Secret","Effect":"Allow","Action":"secretsmanager:GetSecretValue","Resource":"${SECRET_ARN}"},
  {"Sid":"Rekognition","Effect":"Allow","Action":["rekognition:DetectLabels","rekognition:DetectModerationLabels"],"Resource":"*"},
  {"Sid":"Translate","Effect":"Allow","Action":"translate:TranslateText","Resource":"*"},
+ {"Sid":"Polly","Effect":"Allow","Action":"polly:SynthesizeSpeech","Resource":"*"},
  {"Sid":"Bedrock","Effect":"Allow","Action":["bedrock:InvokeModel","bedrock:InvokeModelWithResponseStream"],"Resource":"*"},
  {"Sid":"Location","Effect":"Allow","Action":["geo-routes:CalculateRoutes","geo-places:Geocode","geo-places:ReverseGeocode","geo-places:SearchText"],"Resource":"*"}
 ]}
@@ -111,7 +112,7 @@ ok "server role can use: its S3 photo folder, its secret, Rekognition, Translate
 
 # ---------- Bedrock model ----------
 say "Amazon Bedrock: finding a model this account can use"
-FEATURES="rekognition,translate,location"
+FEATURES="rekognition,translate,location,polly"
 BEDROCK_MODEL=""
 # Amazon Nova models need no use-case form, so they work in accounts where an organisation policy blocks it.
 for m in "${BEDROCK_MODEL_ID:-}" "global.anthropic.claude-haiku-4-5-20251001-v1:0" \

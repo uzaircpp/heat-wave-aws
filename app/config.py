@@ -77,6 +77,7 @@ class Settings:
     weather_refresh_s: int = int(os.environ.get("WEATHER_REFRESH_S", "900"))
     alerts_refresh_s: int = int(os.environ.get("ALERTS_REFRESH_S", "600"))
     run_background_jobs: bool = _bool("RUN_BACKGROUND_JOBS", True)
+    push_check_s: int = int(os.environ.get("PUSH_CHECK_S", "300"))
 
     # City frame. Delhi by default; another city needs its own wards file.
     city_name: str = os.environ.get("CITY_NAME", "Delhi")

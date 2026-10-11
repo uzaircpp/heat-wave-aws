@@ -1,0 +1,16 @@
+{
+  "name": "UrbanShield: heat and flood alerts for Delhi",
+  "short_name": "UrbanShield",
+  "description": "Safe working hours, nearest water and shade, flood-aware routes and push alerts for Delhi.",
+  "start_url": "/?go=safe",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#150605",
+  "theme_color": "#150605",
+  "lang": "en-IN",
+  "icons": [
+    {"src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png"},
+    {"src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png"},
+    {"src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}
+  ]
+}

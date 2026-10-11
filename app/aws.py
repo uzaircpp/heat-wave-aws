@@ -8,6 +8,7 @@ Settings (APP_* names are used on AWS; the AWS_* spellings also work locally):
     translate    send broadcasts in Hindi as well as English (Amazon Translate)
     bedrock      draft alerts and officer briefings with a foundation model (Amazon Bedrock, Converse API)
     location     routes that avoid flooded spots, address search (Amazon Location Service, v2 APIs)
+    polly        the assistant speaks its answers in Indian English and Hindi (Amazon Polly, voice Kajal)
     PHOTO_BUCKET report photos stored in Amazon S3 instead of the server's disk
     AWS_SECRET_ID secrets loaded from AWS Secrets Manager at start-up (see config.py)
 
@@ -28,6 +29,7 @@ PHOTO_BUCKET = os.environ.get("PHOTO_BUCKET", "")
 BEDROCK_MODEL_ID = os.environ.get("BEDROCK_MODEL_ID", "global.anthropic.claude-haiku-4-5-20251001-v1:0")
 BEDROCK_REGION = os.environ.get("BEDROCK_REGION", REGION)
 LOCATION_REGION = os.environ.get("LOCATION_REGION", REGION)
+POLLY_REGION = os.environ.get("POLLY_REGION", REGION)
 WATER_LABELS = {"Flood", "Water", "Puddle", "Rain", "Wet", "River", "Lake", "Canal", "Waterfront", "Ripple"}
 
 
@@ -38,7 +40,7 @@ def on(feature: str) -> bool:
 def status() -> dict:
     return {"region": REGION, "rekognition": on("rekognition"), "translate": on("translate"),
             "bedrock": on("bedrock"), "bedrock_model": BEDROCK_MODEL_ID if on("bedrock") else None,
-            "location": on("location"), "s3_photos": bool(PHOTO_BUCKET)}
+            "location": on("location"), "polly": on("polly"), "s3_photos": bool(PHOTO_BUCKET)}
 
 
 @lru_cache(maxsize=None)
@@ -95,6 +97,31 @@ def generate(system: str, prompt: str, max_tokens: int = 500) -> str:
     )
     parts = out["output"]["message"]["content"]
     return "".join(p.get("text", "") for p in parts).strip()
+
+
+def converse(system: str, messages: list[dict], tools: list[dict] | None = None, max_tokens: int = 700) -> dict:
+    """One Converse call with optional tool definitions. Returns the raw response (output.message, stopReason)."""
+    req = {"modelId": BEDROCK_MODEL_ID, "system": [{"text": system}], "messages": messages,
+           "inferenceConfig": {"maxTokens": max_tokens, "temperature": 0.2}}
+    if tools:
+        req["toolConfig"] = {"tools": [{"toolSpec": {"name": t["name"], "description": t["description"].strip(),
+                                                     "inputSchema": {"json": t["schema"]}}} for t in tools]}
+    return client("bedrock-runtime", BEDROCK_REGION).converse(**req)
+
+
+# ---------- Polly ----------
+def speak(text: str, lang: str = "en") -> bytes:
+    """MP3 of the text read by Kajal (neural, Indian English or Hindi); falls back to the standard Aditi voice."""
+    code = "hi-IN" if lang == "hi" else "en-IN"
+    pl = client("polly", POLLY_REGION)
+    try:
+        out = pl.synthesize_speech(Text=text[:2900], OutputFormat="mp3", VoiceId="Kajal", Engine="neural",
+                                   LanguageCode=code)
+    except Exception as e:  # noqa: BLE001 - neural voices are not in every region
+        log.info("Polly neural failed (%s), using standard voice", e)
+        out = pl.synthesize_speech(Text=text[:2900], OutputFormat="mp3", VoiceId="Aditi", Engine="standard",
+                                   LanguageCode=code)
+    return out["AudioStream"].read()
 
 
 # ---------- Amazon Location Service (v2 Routes and Places APIs, no resources to create) ----------
