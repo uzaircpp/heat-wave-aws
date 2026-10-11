@@ -110,24 +110,33 @@ fi
 aws iam get-role --role-name $SROLE >/dev/null 2>&1 || aws iam create-role --role-name $SROLE --assume-role-policy-document file:///tmp/eb-trust.json >/dev/null
 aws iam attach-role-policy --role-name $SROLE --policy-arn arn:aws:iam::aws:policy/service-role/AWSElasticBeanstalkEnhancedHealth
 aws iam attach-role-policy --role-name $SROLE --policy-arn arn:aws:iam::aws:policy/AWSElasticBeanstalkManagedUpdatesCustomerRolePolicy
-ok "server role can use: its S3 photo folder, its secret, Rekognition, Translate, Bedrock, Location Service"
+ok "server role can use: its S3 photo folder, its secret, Rekognition, Translate, Polly, Bedrock, Location Service"
 
 # ---------- Bedrock model ----------
 say "Amazon Bedrock: finding a model this account can use"
 FEATURES="rekognition,translate,location,polly"
 BEDROCK_MODEL=""
-# Amazon Nova models need no use-case form, so they work in accounts where an organisation policy blocks it.
-for m in "${BEDROCK_MODEL_ID:-}" "global.anthropic.claude-haiku-4-5-20251001-v1:0" \
-         "apac.amazon.nova-lite-v1:0" "apac.amazon.nova-pro-v1:0" "apac.amazon.nova-micro-v1:0" \
-         "global.amazon.nova-2-lite-v1:0" "us.amazon.nova-lite-v1:0" "us.amazon.nova-pro-v1:0" "eu.amazon.nova-lite-v1:0" \
-         "amazon.nova-lite-v1:0" "amazon.nova-micro-v1:0" "us.anthropic.claude-3-5-haiku-20241022-v1:0" \
-         "apac.anthropic.claude-3-5-sonnet-20241022-v2:0" "apac.anthropic.claude-3-haiku-20240307-v1:0"; do
+# Try the newest models first; Amazon Nova needs no use-case form, so it works where Anthropic models are not enabled.
+# Also tries every inference profile this account can see in this region.
+PROFILES=$(aws bedrock list-inference-profiles --query 'inferenceProfileSummaries[].inferenceProfileId' --output text 2>/dev/null | tr '\t' '\n' \
+           | grep -Ei 'haiku-4|sonnet-4|nova' | sort -r || true)
+: > /tmp/bedrock.log
+for m in "${BEDROCK_MODEL_ID:-}" "global.anthropic.claude-haiku-4-5-20251001-v1:0" "au.anthropic.claude-haiku-4-5-20251001-v1:0" \
+         "apac.anthropic.claude-haiku-4-5-20251001-v1:0" "us.anthropic.claude-haiku-4-5-20251001-v1:0" \
+         "au.anthropic.claude-sonnet-4-5-20250929-v1:0" "global.anthropic.claude-sonnet-4-5-20250929-v1:0" \
+         $PROFILES \
+         "global.amazon.nova-2-lite-v1:0" "apac.amazon.nova-2-lite-v1:0" "apac.amazon.nova-lite-v1:0" "apac.amazon.nova-pro-v1:0" \
+         "apac.amazon.nova-micro-v1:0" "amazon.nova-lite-v1:0" "amazon.nova-pro-v1:0" "amazon.nova-micro-v1:0" \
+         "us.amazon.nova-lite-v1:0" "eu.amazon.nova-lite-v1:0"; do
   [ -n "$m" ] || continue
   if aws bedrock-runtime converse --model-id "$m" --messages '[{"role":"user","content":[{"text":"Reply with OK"}]}]' \
        --inference-config '{"maxTokens":5}' >/dev/null 2>/tmp/bedrock.err; then BEDROCK_MODEL="$m"; break; fi
+  printf '%s: %s\n' "$m" "$(tr '\n' ' ' < /tmp/bedrock.err | tail -c 220)" >> /tmp/bedrock.log
 done
 if [ -n "$BEDROCK_MODEL" ]; then FEATURES="$FEATURES,bedrock"; ok "using $BEDROCK_MODEL"
-else ok "no model answered ($(tail -c 200 /tmp/bedrock.err)). AI drafts stay off; enable model access in the Bedrock console and run this again."; fi
+else ok "no model answered. The chat uses its built-in assistant. Why each model failed (first lines):"
+     head -n 6 /tmp/bedrock.log | sed 's/^/      /'
+     ok "Enable a model in the Bedrock console (Model catalog), then run this script again."; fi
 
 # ---------- satellite tree cover (runs here, next to the data on AWS) ----------
 if ! python3 -c "import json,sys; w=json.load(open('data/wards.json')); sys.exit(0 if all(x.get('tree_frac') is not None for x in w) else 1)" 2>/dev/null; then
