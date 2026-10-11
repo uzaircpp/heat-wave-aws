@@ -1,10 +1,11 @@
+"""Build the single-file site: python frontend/build.py  ->  frontend/index.html (copy it to web/index.html)."""
 import base64,re,json,os
-D='/home/claude/urbanshield3d/v2/'
+D=os.path.dirname(os.path.abspath(__file__))+'/'
 s=open(D+'template.html').read()
-js=open('/home/claude/vendor/bklit/bklit-charts.js').read(); css=open('/home/claude/vendor/bklit/bklit-charts.css').read()
+js=open(D+'vendor/bklit-charts.js').read(); css=open(D+'vendor/bklit-charts.css').read()
 assert '</script' not in js.lower() and '</style' not in css.lower()
 s=s.replace('__BKLIT_JS__',js).replace('__BKLIT_CSS__',css)
-IC='/tmp/claude-0/node_modules/@phosphor-icons/core/assets/regular/'
+IC=D+'vendor/icons/'  # Phosphor Icons (MIT), regular weight
 def icon(n):
     sv=open(IC+n+'.svg').read().strip()
     return sv.replace('<svg ','<svg class="ic" aria-hidden="true" ',1)

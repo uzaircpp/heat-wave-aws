@@ -10,6 +10,32 @@ photo verification, and a ward-officer console with AI-drafted alerts in English
 - `scripts/prepare_data.py` – builds the city data from open sources  ·  `deploy/` – one-command AWS deploy
 - `tests/` – 28 end-to-end tests (all external services faked)
 
+## Architecture on AWS
+
+```mermaid
+flowchart LR
+  U["Citizens, workers,\nward officers"] -->|HTTPS| CF["Amazon CloudFront"]
+  CF --> EB["Elastic Beanstalk\nEC2 · Docker · FastAPI"]
+  EB --> RDS[("Amazon RDS\nPostgreSQL")]
+  EB --> S3[("Amazon S3\nreport photos")]
+  EB --> SM["Secrets Manager"]
+  EB --> CW["CloudWatch Logs"]
+  EB --> RK["Rekognition\nphoto check"]
+  EB --> TR["Translate\nHindi alerts"]
+  EB --> BR["Bedrock\nAI drafts, briefings"]
+  EB --> LOC["Location Service\nflood-avoiding routes"]
+  WC[("AWS Open Data\nESA WorldCover")] -.->|tree cover, at deploy| EB
+  EB --> OM["Open-Meteo\nweather"]
+  EB --> SA["NDMA SACHET\nofficial alerts"]
+  EB --> OSM["OpenStreetMap\nplaces, drains"]
+```
+
+Every 15 minutes the server pulls the forecast for a 6 × 6 grid over Delhi and blends it to each of the 290
+wards, adjusting for satellite tree and built-up cover. Every 10 minutes it checks official NDMA warnings,
+IMD-threshold forecast rules and citizen report clusters. Reports, alerts and broadcasts are pushed to open
+dashboards instantly (Server-Sent Events).
+
+
 # UrbanShield backend
 
 Heatwave and waterlogging early warning for Delhi, built on open data. FastAPI + SQLite (or Postgres).
@@ -22,16 +48,18 @@ It also serves the website from `web/`, so one deploy gives you the site and the
 | Ward boundaries (290 Delhi wards) | DataMeet Municipal Spatial Data (ODbL) | No |
 | Live weather, 7-day forecast, last 30 days | Open-Meteo (CC BY 4.0), refreshed every 15 min on a 6 x 6 grid over Delhi, blended to each ward | No (free for non-commercial use) |
 | Terrain for the flood model | Copernicus DEM GLO-90 through the Open-Meteo elevation API | No |
-| Water points, shelters, parks, hospitals, underpasses, drains, Yamuna, green cover | OpenStreetMap through Overpass | No |
+| Water points, shelters, parks, hospitals, underpasses, drains, Yamuna | OpenStreetMap through Overpass | No |
+| Tree, green and built-up cover per ward | ESA WorldCover 10 m (Sentinel-1/2) from AWS Open Data | No |
 | Official warnings | SACHET, NDMA's CAP feed (IMD, CWC, state authorities), filtered to Delhi | No |
 | Forecast warnings | Open-Meteo forecast checked against IMD thresholds (heat wave 45 C, heavy rain 64.5 mm/24 h, bursts of 30 mm in 2 h) | No |
-| Citizen reports with photos | Your own database | No |
+| Citizen reports with photos | Your own database; photos in S3 and checked by Amazon Rekognition on AWS | No |
 | Report clusters raise alerts | 3+ waterlogging reports within 400 m in 2 h | No |
-| Safer routes | OSRM road routing, each alternative scored against live flood reports and flood-prone underpasses | No |
-| Addresses and search | Nominatim (OpenStreetMap) | No (contact email in settings) |
+| Safer routes | Amazon Location Service on AWS (OSRM otherwise), each route scored against live flood reports and flood-prone underpasses; if all pass flooding, a route that avoids every spot | No |
+| Addresses and search | Amazon Location Service on AWS, Nominatim (OpenStreetMap) otherwise | No |
 | Safe hours for outdoor work | WBGT from forecast temperature, humidity and sunlight (Stull wet bulb), compared with ACGIH limits per workload | No |
 | Officer queue, fix times, CSV export | Your own database, every status change logged | Officer token you choose |
-| Broadcasts | Live app feed for everyone; SMS / WhatsApp through Twilio | Twilio, optional |
+| Broadcasts | Live app feed for everyone, English + Hindi (Amazon Translate); SMS / WhatsApp through Twilio | Twilio, optional |
+| AI alert drafts and officer briefings | Amazon Bedrock (Claude or Amazon Nova), grounded in the live numbers; officer reviews before sending | AWS only |
 
 Two parts are models, and the API says so in each response: the **flood simulator** ranks wards from
 real terrain, land cover and rainfall (a screening model, not a hydraulic simulation), and the **heat
@@ -87,13 +115,8 @@ pytest -q
 
 ## Deploy
 
-**Render (free):** push this folder to GitHub, then in Render choose New > Blueprint and pick the repo.
-`render.yaml` creates the web service and a Postgres database and generates `OFFICER_TOKEN`.
-Set `CONTACT_EMAIL`. Commit the files from `scripts/prepare_data.py` (`data/wards.json`,
-`data/places.json`, `data/waterways.json`) so the server starts instantly.
-
-Photos are stored on local disk in `data/uploads`. Render's free disk is wiped on redeploy, so for a real
-pilot add a Render persistent disk mounted at `/app/data/uploads` (paid) or move photos to object storage.
+**AWS (recommended):** see [Deploy on AWS](#deploy-on-aws-one-command-from-aws-cloudshell) below. One command
+creates everything; photos go to S3 and data to RDS, so nothing is lost on redeploy.
 
 **Docker anywhere:** `docker build -t urbanshield . && docker run -p 8000:8000 --env-file .env urbanshield`
 
@@ -132,7 +155,10 @@ Officer (header `Authorization: Bearer <OFFICER_TOKEN>`)
   urban heat adjustment from green cover is documented in `app/services/weather.py` (set `UHI_MAX_C=0` to remove it).
 - SMS in India needs DLT registration of your sender and templates with TRAI before Twilio or any Indian
   provider will deliver. WhatsApp needs an approved WhatsApp Business sender.
-- The officer token is a single shared secret, fine for a pilot. Use proper logins before a city rollout.
+- The officer token is a single shared secret, fine for a pilot. Use proper logins (Amazon Cognito) before a city rollout.
+- The AWS setup is a single EC2 instance: fine for a pilot, not highly available. For a city rollout, move to a
+  load-balanced Elastic Beanstalk environment (2+ instances) and Multi-AZ RDS.
+- The Ravi film in the story section is AI-generated (Google Gemini) and labelled as such on the page.
 
 ## Deploy on AWS (one command, from AWS CloudShell)
 
