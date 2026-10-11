@@ -397,6 +397,18 @@ footer{border-top:1px solid var(--line)}
 .tab[aria-selected=true]{color:#1A0805}
 .tabs .tpill{position:absolute;top:2px;bottom:2px;left:0;width:0;border-radius:999px;background:var(--fg)}
 .app-right{display:flex;gap:10px;align-items:center}
+.loc-chip{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border-radius:999px;border:1px solid var(--line-2);background:rgba(255,226,196,.05);color:var(--muted);font:500 12px/1 var(--sans);cursor:pointer;white-space:nowrap;transition:background .3s,color .3s}
+.loc-chip .ic{width:14px;height:14px}
+.loc-chip:hover{color:var(--fg)}
+.loc-chip.on{color:#8CC6FF;border-color:rgba(90,176,255,.45);background:rgba(90,176,255,.1)}
+.loc-chip.busy{opacity:.6;pointer-events:none}
+.loc-banner{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin:14px 22px 0;padding:14px 16px;border-radius:14px;border:1px solid rgba(90,176,255,.3);background:linear-gradient(120deg,rgba(90,176,255,.1),rgba(255,178,63,.06))}
+.loc-banner>.ic{width:22px;height:22px;color:#8CC6FF;flex:none}
+.loc-banner div{flex:1;min-width:220px;display:flex;flex-direction:column;gap:3px}
+.loc-banner b{font-weight:500;font-size:14px}
+.loc-banner span{font-size:12px;color:var(--dim)}
+@media (max-width:1600px){.loc-chip span{display:none}.loc-chip{padding:0 9px}}
+@media (max-width:767px){.loc-chip span{display:none}.loc-chip{padding:0 9px}.loc-banner{margin:12px 12px 0}}
 .ward-sel{appearance:none;-webkit-appearance:none;background:rgba(255,226,196,.05);color:var(--fg);border:1px solid var(--line-2);border-radius:999px;padding:8px 14px;font:500 12px/1 var(--mono);cursor:pointer}
 .icon-btn{position:relative;width:34px;height:34px;border-radius:50%;border:1px solid var(--line-2);display:grid;place-items:center;background:rgba(21,6,5,.7);color:var(--fg);cursor:pointer;transition:border-color .3s,background .3s}
 .icon-btn:hover{border-color:rgba(255,226,196,.5)}
@@ -2140,11 +2152,48 @@ function initRider(){
   /* ---------- header: ward picker, bell, clock ---------- */
   var sel=fresh($('#wardSel'));sel.value=S.wardId;
   function wardTexts(){var n=wname();$('#rpWard').textContent=n;$('#rpCenterT').textContent=n+' centre';$('#opsTitle').textContent=n+' operations';}
-  sel.addEventListener('change',function(){S.wardId=+sel.value;store('us_ward',S.wardId);wardTexts();if(window.__live)onWard();toast('Showing '+wname());});
+  function setWard(id,quiet){if(!WM[id])return;var changed=id!==S.wardId;S.wardId=id;sel.value=id;store('us_ward',id);wardTexts();locChip();
+    if(changed&&window.__live)onWard();if(changed&&!quiet)toast('Showing '+wname());}
+  sel.addEventListener('change',function(){setWard(+sel.value);});
+  /* ---------- the user's own location ---------- */
+  S.loc=null;var locWatch=null,locState='unknown';
+  function userWard(){return S.loc?wardAt(S.loc.lat,S.loc.lon):null;}
+  function atUser(){var w=userWard();return !!(w&&w.i===S.wardId);}  // is the shown ward the one the user is standing in?
+  var chipB=document.createElement('button');chipB.type='button';chipB.className='loc-chip';chipB.id='locChip';sel.parentNode.insertBefore(chipB,sel);
+  function locChip(){var w=userWard();
+    if(w&&w.i===S.wardId){chipB.innerHTML=ic('map-pin')+'<span>You are here</span>';chipB.className='loc-chip on';chipB.title='Showing your location: '+w.name;}
+    else if(w){chipB.innerHTML=ic('map-pin')+'<span>Back to my ward</span>';chipB.className='loc-chip';chipB.title='You are in '+w.name;}
+    else{chipB.innerHTML=ic('crosshair')+'<span>'+(locState==='denied'?'Location off':'Use my location')+'</span>';chipB.className='loc-chip';chipB.title=locState==='denied'?'Location is blocked for this site in your browser settings':'Show heat and flood risk for where you are';}}
+  chipB.addEventListener('click',function(){var w=userWard();if(w){setWard(w.i);return;}if(locState==='denied'){toast('Location is blocked. Allow it for this site in the browser, or pick a ward from the list');return;}locate(true);});
+  function applyLoc(pos,announce){var prev=userWard();S.loc={lat:pos.coords.latitude,lon:pos.coords.longitude,acc:pos.coords.accuracy};var w=userWard();
+    hideBanner();store('us_loc_ok',1);
+    if(!w){locChip();if(announce)toast('You seem to be outside Delhi. Showing '+wname()+'; pick a ward to change it');return;}
+    if(!prev||prev.i!==w.i){var follow=!prev||prev.i===S.wardId||announce;if(follow){setWard(w.i,true);toast(prev?'You are now in '+w.name:'Showing your area: '+w.name);}}
+    locChip();if(window.__mapYou)window.__mapYou(S.loc,!prev||prev.i!==w.i);if(inited.safe&&window.__safeLoad&&atUser()&&!prev)window.__safeLoad();}
+  function locate(announce){if(!navigator.geolocation){toast('This browser cannot share location');return;}
+    if(announce)chipB.classList.add('busy');
+    navigator.geolocation.getCurrentPosition(function(p){chipB.classList.remove('busy');locState='granted';applyLoc(p,announce);watchLoc();},
+      function(e){chipB.classList.remove('busy');if(e.code===1){locState='denied';hideBanner();}locChip();if(announce)toast(e.code===1?'Location not allowed. Pick your ward from the list instead':'Could not get your location: '+e.message);},
+      {enableHighAccuracy:false,timeout:12000,maximumAge:300000});}
+  function watchLoc(){if(locWatch!=null||!navigator.geolocation)return;  // riders move: follow them between wards while the app is open
+    locWatch=navigator.geolocation.watchPosition(function(p){var m=S.loc?Math.hypot(p.coords.latitude-S.loc.lat,p.coords.longitude-S.loc.lon):1;if(m>.0015)applyLoc(p,false);},function(){},{enableHighAccuracy:false,maximumAge:120000,timeout:30000});}
+  var banner=null;
+  function showBanner(){if(banner||store('us_loc_ok')||store('us_loc_skip'))return;var top=$('.dash-top');if(!top)return;
+    banner=document.createElement('div');banner.className='loc-banner';banner.setAttribute('role','region');banner.setAttribute('aria-label','Your location');
+    banner.innerHTML=ic('map-pin')+'<div><b>See heat and flood risk where you are</b><span>Your location stays in this browser; it is only used to pick your ward and the nearest shade, water and routes.</span></div><button type="button" class="btn btn-primary sm" data-a="use">Use my location</button><button type="button" class="btn btn-ghost sm" data-a="pick">Pick a ward</button>';
+    top.after(banner);banner.querySelector('[data-a=use]').onclick=function(){locate(true);};
+    banner.querySelector('[data-a=pick]').onclick=function(){store('us_loc_skip',1);hideBanner();sel.focus();try{sel.showPicker&&sel.showPicker();}catch(e){}};
+    if(M&&!reduce)M.animate(banner,{opacity:[0,1],y:[-8,0]},{duration:.4});}
+  function hideBanner(){if(banner){banner.remove();banner=null;}}
+  function startLocation(){locChip();
+    if(navigator.permissions&&navigator.permissions.query){navigator.permissions.query({name:'geolocation'}).then(function(st){locState=st.state;
+      if(st.state==='granted')locate(false);else if(st.state==='prompt')showBanner();locChip();
+      st.onchange=function(){locState=st.state;if(st.state==='granted')locate(false);locChip();};}).catch(function(){showBanner();});}
+    else showBanner();}
   fresh($('#bellBtn')).addEventListener('click',function(){openTab('dash');var n=S.alerts.length;toast(n?n+' active alert'+(n>1?'s':'')+' for Delhi':'No active alerts right now');});
   var clockEl=$('#clock');function tick(){clockEl.textContent=new Date().toLocaleString('en-IN',{weekday:'short',day:'numeric',month:'short',hour:'numeric',minute:'2-digit',timeZone:TZ}).replace(/\s?(am|pm)$/i,function(x){return ' '+x.trim().toUpperCase();});}
   setInterval(tick,15000);
-  function onWard(){loadHistory();if(inited.safe&&window.__safeLoad)window.__safeLoad();if(inited.fc)INIT.fc();if(inited.ops&&window.__opsLoad)window.__opsLoad();
+  function onWard(){loadHistory();youCard();if(inited.safe&&window.__safeLoad)window.__safeLoad();if(inited.fc)INIT.fc();if(inited.ops&&window.__opsLoad)window.__opsLoad();
     if(inited.report&&window.__pinWard)window.__pinWard();}
 
   /* ---------- dashboard ---------- */
@@ -2167,7 +2216,7 @@ function initRider(){
       $('#mapTitle').textContent=D.getMode()==='heat'?'Feels-like temperature now':'Rain expected, next 6 hours';
       $('#mapSub').textContent='Open-Meteo, updated '+Math.max(1,Math.round((sum.age_s||0)/60))+' min ago';
       D.gauge(sum.feels_like_max==null?30:sum.feels_like_max);
-      $('#gaugeS').textContent='Hottest ward now. City average '+sum.feels_like_mean+'°C';
+      youCard();
       $('#rainKpi').textContent=(sum.rain_6h_max||0)+' mm';
       var nx=sum.next_24h||[];D.spark(nx.slice(0,12).map(function(h){return h.rain_mm||0;}));
       var bars=nx.slice(0,15).map(function(h){return [hourShort(+h.time.slice(11,13)),Math.round((h.rain_mm||0)*10)/10];});
@@ -2175,6 +2224,8 @@ function initRider(){
       D.barChart($('#rainChart'),bars,{max:top,ticks:[0,top/2,top],now:true,note:mx<0.1?'No rain expected in the next 15 hours':'City average, mm per hour'});
       $('#rainSub').textContent='mm, next 15 hours';
     });}
+  function youCard(){if(!S.summary||!S.feels)return;var v=S.feels[S.wardId]&&S.feels[S.wardId].value;
+    $('#gaugeS').textContent=(atUser()?'Your area, ':'')+wname()+': '+(v==null?'–':v.toFixed(1)+'°C')+' now. Hottest ward '+S.summary.feels_like_max+'°C';}
   function loadHistory(){$('#tempSub').textContent=wname()+', loading';
     return get('/api/history/unsafe-hours?days=30&ward_id='+S.wardId).then(function(h){
       var tot=h.days.reduce(function(a,d){return a+d.hours;},0);
@@ -2238,6 +2289,10 @@ function initRider(){
       if(layers.cool)h+='<span><i style="background:#9FD3A8"></i>Shelter</span><span><i style="background:#8CC6FF"></i>Drinking water</span>';lg.innerHTML=h||'<b>No layers on</b>';}
     $$('[data-layer]').forEach(function(c){c=fresh(c);c.addEventListener('change',function(){layers[c.dataset.layer]=c.checked;var other=c.dataset.layer==='tree'?'heat':c.dataset.layer==='heat'?'tree':null;if(other&&c.checked&&layers[other]){layers[other]=false;$$('[data-layer='+other+']')[0].checked=false;}if(c.checked&&c.dataset.layer==='drain')loadWays();if(c.checked&&c.dataset.layer==='cool')loadCool();apply();});});
     S.reports.forEach(function(r){addReport(r,true);});map.set();apply();
+    var youPin=null;window.__mapYou=function(L,focus){if(youPin)youPin.remove();if(!L||!wardAt(L.lat,L.lon))return;
+      youPin=map.addPin(L.lat,L.lon,'#4DA3F5','map-pin',function(){var w=wardAt(L.lat,L.lon);show({title:'You are here',sev:'info',meta:(w?w.name:'')+' · accuracy about '+Math.round(L.acc||0)+' m',desc:'Heat, shade, water and routes in the app use this spot. It stays in your browser.',lat:L.lat,lon:L.lon,zoom:160});},'you');
+      if(focus){var xy=proj(L.lat,L.lon);map.focus(xy[0],xy[1],200);}};
+    if(S.loc)setTimeout(function(){window.__mapYou(S.loc,true);},300);
     var list=$('#repList');function renderList(){var open=S.reports.filter(isOpen).slice(0,6);list.innerHTML=open.length?'':'<li class="empty">No open citizen reports in the last 24 hours.</li>';
       open.forEach(function(r){var li=document.createElement('li');li.innerHTML='<button type="button">'+ic(KIC[r.kind])+'<span><b>'+esc(KL[r.kind]+(r.address?', '+r.address.split(',')[0]:''))+'</b><small>'+esc((r.ward_name||'')+' · '+ago(r.created_at))+'</small></span>'+sevChip(r.severity)+'</button>';li.firstChild.onclick=function(){showReport(r);};list.appendChild(li);});}
     renderList();hooks.push(function(r){addReport(r);renderList();});
@@ -2304,10 +2359,11 @@ function initRider(){
     var role='rider',RM={rider:'rider',build:'construction',vendor:'vendor'},CAT={safe:'Safe',caution:'Caution',unsafe:'Unsafe'},near=[];
     function uvw(u){return u==null?'':u<3?', low':u<6?', moderate':u<8?', high':u<11?', very high':', extreme';}
     function load(){$('#safeSub').textContent=wname()+', loading';
-      return Promise.all([get('/api/safe-hours?role='+RM[role]+'&ward_id='+S.wardId),get('/api/weather/ward?hours=1&ward_id='+S.wardId)]).then(function(a){render(a[0],a[1]);})
+      var q=atUser()?'lat='+S.loc.lat.toFixed(5)+'&lon='+S.loc.lon.toFixed(5):'ward_id='+S.wardId;
+      return Promise.all([get('/api/safe-hours?role='+RM[role]+'&'+q),get('/api/weather/ward?hours=1&'+q)]).then(function(a){render(a[0],a[1]);})
         .catch(function(e){$('#safeSub').textContent='Safe hours unavailable: '+e.message;});}
     function render(sh,wx){var lim=sh.limits_wbgt,now=sh.now,uw=sh.unsafe_window,n=wx.now||{};
-      var tf=treeOf(S.wardId);$('#safeSub').textContent=wname()+(tf!=null?' ('+Math.round(tf*100)+'% tree cover)':'')+' today, by hour, for '+sh.role_label.toLowerCase()+' work ('+sh.workload+' effort).';
+      var tf=treeOf(S.wardId);$('#safeSub').textContent=(atUser()?'Where you are, ':'')+wname()+(tf!=null?' ('+Math.round(tf*100)+'% tree cover)':'')+' today, by hour, for '+sh.role_label.toLowerCase()+' work ('+sh.workload+' effort).';
       var strip=$('#hstrip');strip.innerHTML='';
       sh.hours.forEach(function(h){var d=document.createElement('div');d.className='hc '+h.category+(h.is_now?' now':'');
         d.title=hourLabel(h.hour)+': feels-like '+h.feels_like+'°C, heat stress (WBGT) '+h.wbgt+'°C, '+CAT[h.category].toLowerCase();
@@ -2322,7 +2378,7 @@ function initRider(){
         ['UV index',n.uv_index==null?'–':n.uv_index+uvw(n.uv_index)],['Wind',n.wind_speed_10m==null?'–':Math.round(n.wind_speed_10m)+' km/h']].map(function(r){return '<div><dt>'+r[0]+'</dt><dd>'+r[1]+'</dd></div>';}).join('');
       near=sh.near||[];var row=$('#nearRow'),pickN=[];['drinking_water','park','shelter','community_centre'].forEach(function(k){var p=near.filter(function(x){return x.kind===k;})[0];if(p&&pickN.length<3)pickN.push(p);});
       near.forEach(function(p){if(pickN.length<3&&pickN.indexOf(p)<0)pickN.push(p);});
-      row.innerHTML=pickN.length?'':'<p class="empty">No mapped water points, parks or shelters within 5 km of this ward centre.</p>';
+      row.innerHTML=pickN.length?'':'<p class="empty">No mapped water points, parks or shelters within 5 km of '+(atUser()?'you':'this ward centre')+'.</p>';
       pickN.forEach(function(p){var b=document.createElement('button');b.className='near-item';b.type='button';
         b.innerHTML=ic(PIC[p.kind]||'map-pin')+'<span><b>'+esc(p.name)+'</b><small>'+esc((PK[p.kind]||'')+', '+km(p.distance_m)+(p.opening_hours?' · '+p.opening_hours:''))+'</small></span>'+ic('arrow-right');
         b.onclick=function(){openTab('map',{after:function(){setTimeout(function(){window.__liveFocus&&window.__liveFocus(p);},60);}});};row.appendChild(b);});
@@ -2347,7 +2403,7 @@ function initRider(){
       if(w)get('/api/reverse?lat='+cur.lat.toFixed(6)+'&lon='+cur.lon.toFixed(6)).then(function(r){if(my!==rseq)return;cur.address=r.address;if(r.address)addr.textContent=r.address+' · '+w.name;}).catch(function(){});}
     function goTo(x,y,z){map.focus(x,y,z||70);setTimeout(upd,850);}
     window.__pinTo=function(lat,lon){var xy=proj(lat,lon);goTo(xy[0],xy[1],40);};
-    window.__pinWard=function(){var w=WM[S.wardId];goTo(w.cx,w.cy);};
+    window.__pinWard=function(){if(atUser()){window.__pinTo(S.loc.lat,S.loc.lon);return;}var w=WM[S.wardId];goTo(w.cx,w.cy);};
     requestAnimationFrame(window.__pinWard);$('#rpCenter').onclick=window.__pinWard;
     if(navigator.geolocation){var me=document.createElement('button');me.className='txt-btn';me.type='button';me.innerHTML=ic('map-pin')+'My location';$('#rpCenter').after(me);
       me.onclick=function(){navigator.geolocation.getCurrentPosition(function(p){if(!wardAt(p.coords.latitude,p.coords.longitude)){toast('You seem to be outside Delhi. Drag the map to the spot instead');return;}window.__pinTo(p.coords.latitude,p.coords.longitude);},function(e){toast('Location not available: '+e.message);},{enableHighAccuracy:true,timeout:10000});};}
@@ -2404,6 +2460,7 @@ function initRider(){
       inp.addEventListener('keydown',function(e){if(e.key==='Enter'){var f=list.querySelector('li');if(f&&f.onmousedown){e.preventDefault();f.onmousedown({preventDefault:function(){}});}}});}
     function pickEnd(key,r){ends[key]={lat:r.lat,lon:r.lon,name:r.name};(key==='from'?fromI:toI).value=r.name;drawEnds();if(ends.from&&ends.to)find();else(key==='from'?toI:fromI).focus();}
     ac(fromI,$('#rtFromS'),'from');ac(toI,$('#rtToS'),'to');
+    if(S.loc&&userWard()){ends.from={lat:S.loc.lat,lon:S.loc.lon,name:'My location, '+userWard().name};fromI.value=ends.from.name;setTimeout(function(){drawEnds();},0);}
     var me=$('#rtMe');me.hidden=!navigator.geolocation;me.onclick=function(){navigator.geolocation.getCurrentPosition(function(p){var w=wardAt(p.coords.latitude,p.coords.longitude);
       if(!w){toast('You seem to be outside Delhi');return;}pickEnd('from',{lat:p.coords.latitude,lon:p.coords.longitude,name:'My location, '+w.name});},function(e){toast('Location not available: '+e.message);},{enableHighAccuracy:true,timeout:10000});};
     function drawEnds(){markers.forEach(function(m){m.remove();});markers=[];['from','to'].forEach(function(k){var e=ends[k];if(e)markers.push(map.addPin(e.lat,e.lon,'#FFF2E4',k==='from'?'house':'flag',null,'small'));});}
@@ -2527,7 +2584,7 @@ function initRider(){
   function waitWeather(tries){return get('/api/health',{timeout:8000}).then(function(h){if(h.weather&&h.weather.ready)return h;if(tries>40)throw new Error('weather not ready');setChip('','Loading weather');
     return new Promise(function(res){setTimeout(res,3000);}).then(function(){return waitWeather(tries+1);});});}
   waitWeather(0).then(function(){
-    window.__live=true;tick();wardTexts();
+    window.__live=true;tick();wardTexts();startLocation();
     $('#legalSrc').textContent='Live data: Open-Meteo (CC BY 4.0), OpenStreetMap (ODbL), NDMA SACHET, DataMeet wards. Earth imagery: NASA.';
     get('/api/meta').then(function(m){S.meta=m;var a=m.aws||{},on=[];if(a.s3_photos)on.push('S3');if(a.rekognition)on.push('Rekognition');if(a.translate)on.push('Translate');if(a.bedrock)on.push('Bedrock');if(a.location)on.push('Location Service');
       if(on.length)$('#legalSrc').textContent='Running on AWS ('+a.region+'): '+on.join(', ')+'. Data: Open-Meteo, OpenStreetMap, NDMA SACHET, ESA WorldCover. Earth imagery: NASA.';}).catch(function(){});

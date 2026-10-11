@@ -396,6 +396,18 @@ footer{border-top:1px solid var(--line)}
 .tab[aria-selected=true]{color:#1A0805}
 .tabs .tpill{position:absolute;top:2px;bottom:2px;left:0;width:0;border-radius:999px;background:var(--fg)}
 .app-right{display:flex;gap:10px;align-items:center}
+.loc-chip{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border-radius:999px;border:1px solid var(--line-2);background:rgba(255,226,196,.05);color:var(--muted);font:500 12px/1 var(--sans);cursor:pointer;white-space:nowrap;transition:background .3s,color .3s}
+.loc-chip .ic{width:14px;height:14px}
+.loc-chip:hover{color:var(--fg)}
+.loc-chip.on{color:#8CC6FF;border-color:rgba(90,176,255,.45);background:rgba(90,176,255,.1)}
+.loc-chip.busy{opacity:.6;pointer-events:none}
+.loc-banner{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin:14px 22px 0;padding:14px 16px;border-radius:14px;border:1px solid rgba(90,176,255,.3);background:linear-gradient(120deg,rgba(90,176,255,.1),rgba(255,178,63,.06))}
+.loc-banner>.ic{width:22px;height:22px;color:#8CC6FF;flex:none}
+.loc-banner div{flex:1;min-width:220px;display:flex;flex-direction:column;gap:3px}
+.loc-banner b{font-weight:500;font-size:14px}
+.loc-banner span{font-size:12px;color:var(--dim)}
+@media (max-width:1600px){.loc-chip span{display:none}.loc-chip{padding:0 9px}}
+@media (max-width:767px){.loc-chip span{display:none}.loc-chip{padding:0 9px}.loc-banner{margin:12px 12px 0}}
 .ward-sel{appearance:none;-webkit-appearance:none;background:rgba(255,226,196,.05);color:var(--fg);border:1px solid var(--line-2);border-radius:999px;padding:8px 14px;font:500 12px/1 var(--mono);cursor:pointer}
 .icon-btn{position:relative;width:34px;height:34px;border-radius:50%;border:1px solid var(--line-2);display:grid;place-items:center;background:rgba(21,6,5,.7);color:var(--fg);cursor:pointer;transition:border-color .3s,background .3s}
 .icon-btn:hover{border-color:rgba(255,226,196,.5)}
