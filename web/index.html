@@ -2712,7 +2712,7 @@ function initRider(){
       if(spoken&&!mute)say(r.reply,r.lang);}
     function send(text,spoken){text=(text||'').trim();if(!text||busy)return;busy=true;inp.value='';if(!greeted){greeted=true;}
       bubble('user',text);hist.push({role:'user',text:text});var wait=document.createElement('div');wait.className='ask-msg bot';wait.innerHTML='<span class="ask-dots"><i></i><i></i><i></i></span>';log.appendChild(wait);scroll();
-      var body={messages:hist.slice(-10),ward_id:S.wardId,role:S.role||'rider',lang:lang};if(S.loc&&userWard()){body.lat=+S.loc.lat.toFixed(5);body.lon=+S.loc.lon.toFixed(5);}
+      var body={messages:hist.slice(-10),ward_id:S.wardId,role:S.role||'rider',lang:lang};if(S.loc&&atUser()){body.lat=+S.loc.lat.toFixed(5);body.lon=+S.loc.lon.toFixed(5);}
       get('/api/assistant/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),timeout:45000}).then(function(r){wait.remove();hist.push({role:'assistant',text:r.reply});botReply(r,spoken);})
         .catch(function(e){wait.remove();hist.pop();bubble('bot',T[lang].fail+e.message,'err');}).then(function(){busy=false;});}
     $('#askForm').onsubmit=function(e){e.preventDefault();send(inp.value,false);};

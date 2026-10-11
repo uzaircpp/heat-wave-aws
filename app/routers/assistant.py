@@ -23,6 +23,8 @@ from .. import aws, tools
 from ..data import city
 from ..db import get_session
 from ..services.weather import city_now
+from ..sources import geo
+from ..sources.http import UpstreamError
 
 log = logging.getLogger("urbanshield.assistant")
 router = APIRouter(prefix="/api/assistant")
@@ -242,6 +244,40 @@ def route_ends(text: str) -> tuple[str, str]:
     return "my location", re.sub(r"(?i).*\b(route|rasta|way)\s*", "", t).strip()
 
 
+_NOT_PLACES = {"the", "my", "me", "here", "my area", "my location", "this ward", "my ward", "work", "today", "tomorrow",
+               "delhi", "new delhi", "the city", "shade", "water", "rain", "heat", "sun", "this week", "next week"}
+
+
+async def mentioned_place(text: str) -> dict:
+    """A ward or place named in the question ("in Saket", "Rohini mein"), as tool arguments. {} means the
+    user's own location, which the tools use by default."""
+    t = " " + re.sub(r"[?!.,।]", " ", text.lower()) + " "
+    best = None
+    for w in city().wards:
+        n = w.name.lower()
+        if len(n) >= 4 and f" {n} " in t and (best is None or len(n) > len(best.name)):
+            best = w
+    if best:
+        return {"ward": best.name}
+    m = re.search(r"(?i)\b(?:in|at|near|for|around|of)\s+([a-z][a-z .'-]{2,40}?)\s*(?:\b(?:today|tomorrow|now|right now|this week|ward|area|mein|me)\b|[?.!,]|$)", text.strip())
+    m = m or re.search(r"([^\s]+(?:\s[^\s]+)?)\s+(?:में|मे|mein)\b", text.strip())
+    if not m:
+        return {}
+    q = m.group(1).strip(" .'-")
+    if q.lower() in _NOT_PLACES or len(q) < 3:
+        return {}
+    hits = city().search_wards(q, 1)
+    if hits:
+        return {"ward": hits[0].name}
+    try:
+        res = await geo.geocode(q)
+    except UpstreamError:
+        res = []
+    if res:
+        return {"lat": res[0]["lat"], "lon": res[0]["lon"]}
+    return {}
+
+
 async def offline(text: str, ctx: tools.Ctx, lang: str) -> str:
     hi = lang == "hi"
     kind = intent(text)
@@ -254,23 +290,25 @@ async def offline(text: str, ctx: tools.Ctx, lang: str) -> str:
         return ("जलभराव या गर्मी की समस्या दिखे तो 'Report' में फोटो के साथ भेजें। 'Safe hours' में आज के सुरक्षित घंटे देखें।" if hi else
                 "To report waterlogging or a heat problem, open Report and send a photo with your location. "
                 "Safe hours shows when it is safe to work today, and alerts arrive on this phone if you turn them on.")
+    where = {} if kind in ("route", "flood_sim", "alerts") else await mentioned_place(text)
     if kind == "nearby":
         t = text.lower()
         kinds = (["drinking_water"] if re.search(_p(r"water|drink\w*|thirst\w*|pani|paani", "पानी"), t) else []) + \
                 (["park"] if re.search(_p(r"shade|shadow|trees?|parks?|chhaya|chaya", "छाया"), t) else []) + \
                 (["hospital"] if re.search(_p(r"hospitals?", "अस्पताल"), t) else []) + \
                 (["shelter", "community_centre"] if re.search(_p(r"shelters?|cool\w*|rest", "आश्रय|ठंड"), t) else [])
-        r = await tools.call("find_nearby", {"kinds": kinds or ["drinking_water", "park", "shelter"], "limit": 3}, ctx)
+        r = await tools.call("find_nearby", {**where, "kinds": kinds or ["drinking_water", "park", "shelter"], "limit": 3}, ctx)
         if "error" in r:
             return r["error"]
         if not r["places"]:
-            return "6 किलोमीटर के अंदर कुछ नहीं मिला।" if hi else "Nothing like that is mapped within 6 km of you."
+            return "6 किलोमीटर के अंदर कुछ नहीं मिला।" if hi else f"Nothing like that is mapped within 6 km of {r['from']}."
         p = r["places"][0]
         if hi:
             more = "; ".join(f"{x['name']} {_m(x['distance_m'])}" for x in r["places"][1:])
             return f"सबसे पास {_HI_KIND.get(p['kind'], p['kind'])}: {p['name']}, {_m(p['distance_m'])} दूर।" + (f" और: {more}।" if more else "")
         more = "; ".join(f"{x['name']} ({_EN_KIND.get(x['kind'], x['kind'])}, {_m(x['distance_m'])})" for x in r["places"][1:])
-        return f"Nearest {_EN_KIND.get(p['kind'], p['kind'])}: {p['name']}, {_m(p['distance_m'])} away." + (f" Also: {more}." if more else "")
+        to = f" to {r['from']}" if where else ""
+        return f"Nearest {_EN_KIND.get(p['kind'], p['kind'])}{to}: {p['name']}, {_m(p['distance_m'])} away." + (f" Also: {more}." if more else "")
     if kind == "route":
         start, dest = route_ends(text)
         r = await tools.call("plan_route", {"start": start, "destination": dest}, ctx)
@@ -301,7 +339,7 @@ async def offline(text: str, ctx: tools.Ctx, lang: str) -> str:
         return (f"{r['count']} चेतावनी सक्रिय। सबसे गंभीर: {a['title']}।" if hi else
                 f"{r['count']} active alert{'s' if r['count'] > 1 else ''}. Most serious: {a['title']}, from {a['source']}.")
     if kind == "forecast":
-        r = await tools.call("get_forecast", {}, ctx)
+        r = await tools.call("get_forecast", where, ctx)
         if "error" in r:
             return r["error"]
         days = r["days"][:7]
@@ -318,7 +356,7 @@ async def offline(text: str, ctx: tools.Ctx, lang: str) -> str:
     # "safe" and "now"
     tomorrow = re.search(r"tomorrow|kal|कल", text.lower())
     if kind == "safe" or tomorrow:
-        r = await tools.call("get_safe_hours", {"day_offset": 1 if tomorrow else 0}, ctx)
+        r = await tools.call("get_safe_hours", {**where, "day_offset": 1 if tomorrow else 0}, ctx)
         if "error" in r:
             return r["error"]
         if hi:
@@ -330,7 +368,7 @@ async def offline(text: str, ctx: tools.Ctx, lang: str) -> str:
         rest = f" Rest now until {r['rest_until']}." if r["rest_until"] else ""
         day = "Tomorrow" if tomorrow else "Today"
         return f"{day} in {r['ward']} for {r['work_type'].lower()} work: {win}.{rest} {r['advice'] or ''}".strip()
-    r = await tools.call("get_conditions", {}, ctx)
+    r = await tools.call("get_conditions", where, ctx)
     if "error" in r:
         return r["error"]
     risk = r["heat_risk_now"]

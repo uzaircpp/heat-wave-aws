@@ -555,3 +555,14 @@ def test_push_subscribe_test_and_alert_engine(client, mock, monkeypatch):
     with SessionLocal() as s:
         assert s.query(PushSub).filter_by(endpoint="https://push.example.org/sub/gone").one().active is False
     assert client.request("DELETE", "/api/push/subscribe", json={"endpoint": sub["endpoint"]}).json()["ok"]
+
+
+def test_assistant_uses_the_ward_in_the_question(client):
+    ask = lambda text: client.post("/api/assistant/chat", json={  # noqa: E731
+        "messages": [{"role": "user", "text": text}], **KB, "lang": "en"}).json()["reply"]
+    from app.data import city
+    here = city().nearest_ward(KB["lat"], KB["lon"]).name
+    assert "Rohini" in ask("Is it safe to work in Rohini now?") and here not in ask("weather in Rohini today")
+    assert "Lajpat Nagar" in ask("Lajpat Nagar forecast")
+    assert here in ask("Is it safe to work now?")          # no place named: the user's own ward
+    assert "to " in ask("nearest water near Connaught Place")   # a landmark, through geocoding

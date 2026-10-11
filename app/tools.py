@@ -59,7 +59,8 @@ def _ward(args: dict, ctx: Ctx) -> Ward:
 
 def _point(args: dict, ctx: Ctx) -> tuple[float, float, str]:
     if args.get("lat") is not None and args.get("lon") is not None:
-        return float(args["lat"]), float(args["lon"]), "the given point"
+        w = city().ward_at(float(args["lat"]), float(args["lon"]))
+        return float(args["lat"]), float(args["lon"]), (args.get("label") or (f"that spot in {w.name}" if w else "that spot"))
     if not args.get("ward") and ctx.lat is not None and ctx.lon is not None:
         return ctx.lat, ctx.lon, "you"
     w = _ward(args, ctx)
