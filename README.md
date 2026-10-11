@@ -17,23 +17,20 @@ assistant, an MCP server over the same data, and push alerts that reach a phone 
 
 ```mermaid
 flowchart LR
-  U["Citizens, workers,\nward officers"] -->|HTTPS| CF["Amazon CloudFront"]
-  CF --> EB["Elastic Beanstalk\nEC2 · Docker · FastAPI"]
-  EB --> RDS[("Amazon RDS\nPostgreSQL")]
-  EB --> S3[("Amazon S3\nreport photos")]
+  U["Users: workers, residents, officers"] -->|HTTPS| CF["CloudFront"]
+  A["AI agents (MCP)"] -->|/mcp| CF
+  CF --> EB["Elastic Beanstalk<br/>EC2 + Docker · FastAPI"]
+  EB --> RDS[("RDS PostgreSQL")]
+  EB --> S3[("S3 photos")]
   EB --> SM["Secrets Manager"]
   EB --> CW["CloudWatch Logs"]
-  EB --> RK["Rekognition\nphoto check"]
-  EB --> TR["Translate\nHindi alerts"]
-  EB --> BR["Bedrock\nassistant, AI drafts, briefings"]
-  EB --> LOC["Location Service\nflood-avoiding routes"]
-  EB --> PO["Polly\nvoice replies"]
-  EB -->|Web Push| PH["Phones and browsers\nalerts with app closed"]
-  AI["MCP clients\n(Claude, agents)"] -->|/mcp| CF
-  WC[("AWS Open Data\nESA WorldCover")] -.->|tree cover, at deploy| EB
-  EB --> OM["Open-Meteo\nweather"]
-  EB --> SA["NDMA SACHET\nofficial alerts"]
-  EB --> OSM["OpenStreetMap\nplaces, drains"]
+  EB --> BR["Bedrock<br/>assistant + alert drafts"]
+  EB --> PO["Polly<br/>voice"]
+  EB --> RK["Rekognition<br/>photo check"]
+  EB --> TR["Translate<br/>Hindi"]
+  EB --> LOC["Location Service<br/>flood-safe routes"]
+  OD[("AWS Open Data<br/>ESA WorldCover")] -.->|tree cover| EB
+  EB -->|Web Push| P["Phones"]
 ```
 
 Every 15 minutes the server pulls the forecast for a 6 × 6 grid over Delhi and blends it to each of the 290
