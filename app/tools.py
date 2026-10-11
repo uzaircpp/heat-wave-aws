@@ -198,6 +198,10 @@ async def plan_route(args: dict, ctx: Ctx) -> dict:
             except ValueError:
                 pass
         hits = [w for w in city().search_wards(v, 1)]
+        if not hits:
+            from .names import find_ward
+            fw = find_ward(v, cutoff=0.82)
+            hits = [fw] if fw else []
         if hits:
             return hits[0].lat, hits[0].lon, hits[0].name
         try:

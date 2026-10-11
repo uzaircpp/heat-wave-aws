@@ -237,19 +237,48 @@ def intent(text: str) -> str:
     return "none"
 
 
+_FILLER = re.compile(r"(?i)^(?:the|a|an|my|please|pls|me)\s+|\s+(?:please|pls|now|today|right now|by road|by bike|"
+                     r"route|rasta|raasta|ka rasta|tak|jana hai|jaana hai|kaise jaun|kaise jaayein)$")
+
+
+def _clean(p: str) -> str:
+    p = p.strip(" ?.!।,")
+    for _ in range(3):
+        p = _FILLER.sub("", p).strip(" ?.!।,")
+    p = re.sub(r"\s+(?:तक|का|के|की|को|से|जाना|है|कैसे|रास्ता|जाऊं|जाएं)$", "", p).strip()
+    return p
+
+
 def route_ends(text: str) -> tuple[str, str]:
+    """(start, destination) from things like 'route to X', 'from X to Y', 'between X and Y', 'X se Y',
+    'X से Y तक'. Start defaults to 'my location'."""
     t = text.strip().rstrip("?.!। ")
-    m = re.search(r"(?i)\bfrom\s+(.+?)\s+to\s+(.+)$", t)
+    pats = [
+        (r"(?i)\bbetween\s+(.+?)\s+(?:and|&)\s+(.+)$", False),
+        (r"(?i)\bfrom\s+(.+?)\s+(?:to|till|towards)\s+(.+)$", False),
+        (r"(?i).*\b(?:to|till|towards)\s+(.+?)\s+from\s+(.+)$", True),
+        (r"(?i)(?:^|\s)([a-z][a-z .'-]+?)\s+se\s+([a-z][a-z .'-]+?)(?:\s+(?:tak|ka|ke|ki|jana|jaana|kaise)\b.*)?$", False),
+        (r"(\S+(?:\s\S+){0,2})\s+से\s+(\S+(?:\s\S+){0,2}?)(?:\s+(?:तक|का|के|की|जाना|कैसे)(?:\s.*)?)?$", False),
+    ]
+    for pat, swap in pats:
+        m = re.search(pat, t)
+        if m:
+            x, y = _clean(m.group(1)), _clean(m.group(2))
+            x = re.sub(r"(?i)^.*\b(?:route|rasta|way|path)\s+", "", x)   # "safest route Zakir Nagar" -> "Zakir Nagar"
+            if x and y:
+                return (y, x) if swap else (x, y)
+    found = names.find_wards(t)
+    if len(found) >= 2:                      # "Zakir Nagar to Karol Bagh route"
+        return found[0].name, found[1].name
+    m = re.search(r"(?i).*\b(?:to|till|tak)\s+(.+)$", t)
     if m:
-        return m.group(1), m.group(2)
-    m = re.search(r"(?i).*\b(?:to|till|tak)\s+(.+?)(?:\s+from\s+(.+))?$", t)
-    if m:
-        return (m.group(2) or "my location"), m.group(1)
+        return "my location", _clean(m.group(1))
+    if len(found) == 1:
+        return "my location", found[0].name
     m = re.search(r"(.+?)\s+(?:का|के लिए|तक|को|कैसे)\s", t + " ")
     if m:
-        dest = re.sub(r"^(मुझे|मैं|से)\s+", "", m.group(1)).strip()
-        return "my location", dest
-    return "my location", re.sub(r"(?i).*\b(route|rasta|way)\s*", "", t).strip()
+        return "my location", _clean(re.sub(r"^(मुझे|मैं|से)\s+", "", m.group(1)))
+    return "my location", _clean(re.sub(r"(?i).*\b(route|rasta|way)\s*", "", t))
 
 
 _NOT_PLACES = {"the", "my", "me", "here", "my area", "my location", "this ward", "my ward", "work", "today", "tomorrow",
@@ -322,9 +351,13 @@ async def offline(text: str, ctx: tools.Ctx, lang: str) -> str:
             via += f", starting from {r['from']} (share your location for a route from where you are)"
         if hi:
             safe = "रास्ते में कोई जलभराव नहीं।" if r["avoids_all_flooding"] else f"ध्यान दें: {', '.join(r['flood_spots_on_route'])} पर पानी हो सकता है।"
-            return f"{r['to']} तक {r['km']} किमी, लगभग {r['minutes']} मिनट। {safe}"
+            start = "" if r["from"] == "My location" or r["from"].startswith("the centre of") else f"{r['from']} से "
+            return f"{start}{r['to']} तक सुरक्षित रास्ता: {r['km']} किमी, लगभग {r['minutes']} मिनट। {safe}"
         safe = "No flooding reported on the way." if r["avoids_all_flooding"] else f"Careful: water expected near {', '.join(r['flood_spots_on_route'])}."
-        return f"{r['to']} is {r['km']} km, about {r['minutes']} minutes{via}. {safe}"
+        start = "" if r["from"] in ("My location",) or r["from"].startswith("the centre of") else f" from {r['from']}"
+        faster = (f" The fastest road takes {r['fastest_minutes']} minutes but passes flooding, so this safer one is recommended."
+                  if r["fastest_minutes"] < r["minutes"] else "")
+        return f"Safest route to {r['to']}{start}: {r['km']} km, about {r['minutes']} minutes{via}. {safe}{faster}"
     if kind == "flood_sim":
         mm = re.search(r"(\d+)\s*mm", text)
         r = await tools.call("simulate_flood", {"rain_mm": float(mm.group(1)) if mm else 80}, ctx)

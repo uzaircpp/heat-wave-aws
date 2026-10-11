@@ -96,3 +96,22 @@ def find_ward(text: str, cutoff: float = 0.86) -> Ward | None:
                 if score > best_score or (score == best_score and len(form) > best_len):   # "Rohini East" over "Rohini"
                     best, best_score, best_len = w, score, len(form)
     return best
+
+
+def find_wards(text: str, cutoff: float = 0.9) -> list[Ward]:
+    """Every ward named in the text, in the order they appear (for 'between A and B')."""
+    latin = transliterate(text) if DEVANAGARI.search(text) else text
+    words = phonetic(latin).split()
+    hits: list[tuple[int, int, Ward]] = []
+    for form, nw, w, weight in _index():
+        for i in range(0, max(1, len(words) - nw + 1)):
+            chunk = " ".join(words[i:i + nw])
+            if abs(len(chunk) - len(form)) <= 3 and weight * SequenceMatcher(None, chunk, form).ratio() >= cutoff:
+                hits.append((i, -len(form), w))
+    hits.sort(key=lambda h: (h[0], h[1]))
+    out, used_until = [], -1
+    for i, _, w in hits:
+        if i > used_until and w not in out:
+            out.append(w)
+            used_until = i + len(w.name.split()) - 1
+    return out

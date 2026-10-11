@@ -587,3 +587,16 @@ def test_route_from_my_location(client):
     assert not any(a["type"] == "locate" for a in r["actions"])
     r = chat(ward_id=5)                                               # no GPS: start from the shown ward, offer to share
     assert "starting from the centre of" in r["reply"] and r["actions"][0]["type"] == "locate"
+
+
+def test_route_between_two_named_places(client):
+    from app.routers.assistant import route_ends
+    assert route_ends("Find the shortest route or the safest route between Zakir Nagar and Karol Bagh.") == ("Zakir Nagar", "Karol Bagh")
+    assert route_ends("how to go to Rohini from Lajpat Nagar") == ("Lajpat Nagar", "Rohini")
+    assert route_ends("Zakir Nagar se Karol Bagh ka rasta") == ("Zakir Nagar", "Karol Bagh")
+    assert route_ends("safest route Zakir Nagar to Rohini please") == ("Zakir Nagar", "Rohini")
+    assert route_ends("is it safe to go to India Gate?") == ("my location", "India Gate")
+    for q, lang in [("Find the shortest route or the safest route between Zakir Nagar and Karol Bagh.", "en"),
+                    ("जाकिर नगर से करोल बाग तक का रास्ता", "hi")]:
+        r = client.post("/api/assistant/chat", json={"messages": [{"role": "user", "text": q}], "lang": lang}).json()
+        assert r["tools_used"] == ["plan_route"] and "Zakir Nagar" in r["reply"] and "couldn't find" not in r["reply"], r
