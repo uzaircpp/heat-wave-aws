@@ -464,7 +464,11 @@ footer{border-top:1px solid var(--line)}
 .loc-banner span{font-size:12px;color:var(--dim)}
 @media (max-width:1600px){.loc-chip span{display:none}.loc-chip{padding:0 9px}}
 @media (max-width:767px){.loc-chip span{display:none}.loc-chip{padding:0 9px}.loc-banner{margin:12px 12px 0}}
-.ward-sel{appearance:none;-webkit-appearance:none;background:rgba(255,226,196,.05);color:var(--fg);border:1px solid var(--line-2);border-radius:999px;padding:8px 14px;font:500 12px/1 var(--mono);cursor:pointer}
+.ward-sel{appearance:none;-webkit-appearance:none;color-scheme:dark;background:#2A0F09 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23FFC44D' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat right 12px center;color:var(--fg);border:1px solid var(--line-2);border-radius:999px;padding:8px 32px 8px 14px;font:500 12px/1 var(--mono);cursor:pointer}
+.ward-sel:hover,.ward-sel:focus{border-color:rgba(255,196,77,.6);outline:none}
+select{color-scheme:dark}
+select option,select optgroup{background:#1F0A07;color:#FFF2E4}
+select option:checked{background:#5A2A12;color:#FFC44D}
 .icon-btn{position:relative;width:34px;height:34px;border-radius:50%;border:1px solid var(--line-2);display:grid;place-items:center;background:rgba(21,6,5,.7);color:var(--fg);cursor:pointer;transition:border-color .3s,background .3s}
 .icon-btn:hover{border-color:rgba(255,226,196,.5)}
 .icon-btn .ic{width:16px;height:16px}
