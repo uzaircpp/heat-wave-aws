@@ -46,6 +46,9 @@ def system_prompt(ctx: tools.Ctx, lang: str) -> str:
         where = f"lat {ctx.lat:.5f}, lon {ctx.lon:.5f}, in {w.name} ward"
     elif ctx.ward_id and c.ward(ctx.ward_id):
         where = f"{c.ward(ctx.ward_id).name} ward (chosen in the app)"
+    if ctx.me_lat is not None and ctx.lat is None:
+        me = c.nearest_ward(ctx.me_lat, ctx.me_lon)
+        where += f". Their phone is actually at lat {ctx.me_lat:.5f}, lon {ctx.me_lon:.5f}, in {me.name} (use this for 'my location')"
     reply_lang = "Hindi in Devanagari script, simple everyday words" if lang == "hi" else "English"
     return f"""You are the UrbanShield assistant, a heat and flood safety helper for outdoor workers and residents of Delhi, India.
 Current time in Delhi: {city_now().strftime('%A %d %B %Y, %I:%M %p')}.
@@ -86,6 +89,8 @@ class ChatIn(BaseModel):
     ward_id: int | None = None
     role: str = "rider"
     lang: str = Field("en", pattern="^(en|hi)$")
+    my_lat: float | None = Field(None, ge=-90, le=90)    # GPS, sent even when another ward is shown
+    my_lon: float | None = Field(None, ge=-180, le=180)
 
 
 @router.get("/info")
@@ -100,7 +105,7 @@ def info():
 @router.post("/chat")
 async def chat(body: ChatIn, request: Request, s: Session = Depends(get_session)):
     _limit(request, 40)
-    ctx = tools.Ctx(lat=body.lat, lon=body.lon, ward_id=body.ward_id,
+    ctx = tools.Ctx(lat=body.lat, lon=body.lon, ward_id=body.ward_id, me_lat=body.my_lat, me_lon=body.my_lon,
                     role=body.role if body.role in tools.heat.ROLES else "rider", session=s)
     provider = "offline"
     reply = None
@@ -178,6 +183,9 @@ def actions(ctx: tools.Ctx) -> list[dict]:
             out.append({"type": "screen", "label": "See all alerts", "screen": "dash"})
         elif u["tool"] == "simulate_flood":
             out.append({"type": "screen", "label": "Open flood simulator", "screen": "sim"})
+    no_gps = ctx.me_lat is None and ctx.lat is None
+    if no_gps and any(u["tool"] in {"plan_route", "find_nearby"} for u in ctx.used):
+        out.insert(0, {"type": "locate", "label": "Share my location"})
     seen, uniq = set(), []
     for a in out:
         k = (a["type"], a["label"])
@@ -310,6 +318,8 @@ async def offline(text: str, ctx: tools.Ctx, lang: str) -> str:
         if "error" in r:
             return r["error"]
         via = f" via {', '.join(r['via'][:2])}" if r["via"] else ""
+        if r["from"].startswith("the centre of"):
+            via += f", starting from {r['from']} (share your location for a route from where you are)"
         if hi:
             safe = "रास्ते में कोई जलभराव नहीं।" if r["avoids_all_flooding"] else f"ध्यान दें: {', '.join(r['flood_spots_on_route'])} पर पानी हो सकता है।"
             return f"{r['to']} तक {r['km']} किमी, लगभग {r['minutes']} मिनट। {safe}"

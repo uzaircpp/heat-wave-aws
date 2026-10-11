@@ -89,10 +89,10 @@
     if(!w){locChip();if(announce)toast('You seem to be outside Delhi. Showing '+wname()+'; pick a ward to change it');return;}
     if(!prev||prev.i!==w.i){var follow=!prev||prev.i===S.wardId||announce;if(follow){setWard(w.i,true);toast(prev?'You are now in '+w.name:'Showing your area: '+w.name);}}
     locChip();if(!prev||prev.i!==w.i)pushSync();if(window.__mapYou)window.__mapYou(S.loc,!prev||prev.i!==w.i);if(inited.safe&&window.__safeLoad&&atUser()&&!prev)window.__safeLoad();}
-  function locate(announce){if(!navigator.geolocation){toast('This browser cannot share location');return;}
+  function locate(announce,done){done=done||function(){};if(!navigator.geolocation){toast('This browser cannot share location');done(false);return;}
     if(announce)chipB.classList.add('busy');
-    navigator.geolocation.getCurrentPosition(function(p){chipB.classList.remove('busy');locState='granted';applyLoc(p,announce);watchLoc();},
-      function(e){chipB.classList.remove('busy');if(e.code===1){locState='denied';hideBanner();}locChip();if(announce)toast(e.code===1?'Location not allowed. Pick your ward from the list instead':'Could not get your location: '+e.message);},
+    navigator.geolocation.getCurrentPosition(function(p){chipB.classList.remove('busy');locState='granted';applyLoc(p,announce);watchLoc();done(true);},
+      function(e){chipB.classList.remove('busy');if(e.code===1){locState='denied';hideBanner();}locChip();done(false);if(announce)toast(e.code===1?'Location blocked. Click the lock icon next to the address bar, allow Location, then try again':'Could not get your location: '+e.message);},
       {enableHighAccuracy:false,timeout:12000,maximumAge:300000});}
   function watchLoc(){if(locWatch!=null||!navigator.geolocation)return;  // riders move: follow them between wards while the app is open
     locWatch=navigator.geolocation.watchPosition(function(p){var m=S.loc?Math.hypot(p.coords.latitude-S.loc.lat,p.coords.longitude-S.loc.lon):1;if(m>.0015)applyLoc(p,false);},function(){},{enableHighAccuracy:false,maximumAge:120000,timeout:30000});}
@@ -534,11 +534,16 @@
            hi:{title:'UrbanShield से पूछें',ph:'गर्मी, बारिश, पानी, रास्ते के बारे में पूछें',hello:'नमस्ते! पूछिए: क्या अभी काम करना सुरक्षित है, सबसे पास पानी या छाया कहां है, या कौन सी सड़क पर पानी भरा है। बोलने के लिए माइक दबाएं।',listen:'सुन रहा हूं…',fail:'माफ़ कीजिए, जवाब नहीं मिल सका: '}};
     var fab=document.createElement('button');fab.type='button';fab.className='ask-fab';fab.setAttribute('aria-label','Ask UrbanShield');fab.innerHTML=ic('chat-circle-dots')+'<span>Ask</span>';
     var pn=document.createElement('div');pn.className='ask-panel';pn.hidden=true;pn.setAttribute('role','dialog');pn.setAttribute('aria-label','UrbanShield assistant');
-    pn.innerHTML='<div class="ask-h"><div><b id="askT"></b><small id="askProv">Live Delhi data</small></div><div class="ask-tools"><button type="button" class="ask-lang" id="askLang"></button><button type="button" class="ask-ib" id="askSpk"></button><button type="button" class="ask-ib" id="askX" aria-label="Close">'+ic('x')+'</button></div></div>'+
+    pn.innerHTML='<div class="ask-h"><div><b id="askT"></b><small id="askProv">Live Delhi data</small></div><div class="ask-tools"><button type="button" class="ask-ib" id="askLoc">'+ic('crosshair')+'</button><button type="button" class="ask-lang" id="askLang"></button><button type="button" class="ask-ib" id="askSpk"></button><button type="button" class="ask-ib" id="askX" aria-label="Close">'+ic('x')+'</button></div></div>'+
       '<div class="ask-log" id="askLog" aria-live="polite"></div><div class="ask-chips" id="askChips"></div>'+
       '<form class="ask-in" id="askForm"><button type="button" class="ask-mic" id="askMic" aria-label="Talk">'+ic('microphone')+'</button><input id="askTxt" autocomplete="off" maxlength="500" enterkeyhint="send"><button type="submit" class="ask-send" aria-label="Send">'+ic('paper-plane-right')+'</button></form>';
     document.body.appendChild(fab);document.body.appendChild(pn);
-    var log=$('#askLog'),inp=$('#askTxt'),mic=$('#askMic'),chips=$('#askChips'),spk=$('#askSpk');
+    var log=$('#askLog'),inp=$('#askTxt'),mic=$('#askMic'),chips=$('#askChips'),spk=$('#askSpk'),locB=$('#askLoc');
+    function locLabel(){var w=S.loc&&userWard();locB.classList.toggle('off',!S.loc);locB.setAttribute('aria-label',w?'Using your location: '+w.name:'Share my location');locB.title=w?'Using your location: '+w.name:'Share my location';}
+    function shareLoc(then){bubble('bot',lang==='hi'?'आपकी लोकेशन ले रहा हूं… ब्राउज़र पूछे तो Allow दबाएं।':'Getting your location… tap Allow if the browser asks.');
+      locate(true,function(ok){locLabel();if(ok){var w=userWard();bubble('bot',(lang==='hi'?'ठीक है, आप ':'Got it, you are in ')+(w?w.name:'Delhi')+(lang==='hi'?' में हैं।':'.'));if(then)then();}
+        else bubble('bot',lang==='hi'?'लोकेशन नहीं मिली। पता बार में ताले के निशान पर क्लिक करके Location चालू करें, या कहें "Karol Bagh से Saket का रास्ता"।':'I could not get your location. Click the lock icon next to the address bar and allow Location, or say "route from Karol Bagh to Saket".','err');});}
+    locB.onclick=function(){shareLoc();};setInterval(locLabel,4000);locLabel();
     if(!SR)mic.hidden=true;
     function labels(){$('#askT').textContent=T[lang].title;inp.placeholder=T[lang].ph;$('#askLang').textContent=lang==='hi'?'हिं':'EN';$('#askLang').setAttribute('aria-label',lang==='hi'?'Switch to English':'हिंदी में बदलें');
       spk.innerHTML=ic(mute?'speaker-slash':'speaker-high');spk.classList.toggle('off',mute);spk.setAttribute('aria-label',mute?'Voice replies off':'Voice replies on');
@@ -563,19 +568,20 @@
       else browserSay(text,l);}
 
     function doAction(a){if(a.type==='directions'){window.open(a.url,'_blank','noopener');return;}
+      if(a.type==='locate'){var lastQ=null;for(var i=hist.length-1;i>=0;i--)if(hist[i].role==='user'){lastQ=hist[i].text;break;}shareLoc(lastQ?function(){send(lastQ,false);}:null);return;}
       var cmd=document.getElementById('command');if(cmd)cmd.scrollIntoView({behavior:'smooth',block:'start'});if(matchMedia('(max-width:767px)').matches)close();
       if(a.type==='map')openTab('map',{after:function(){setTimeout(function(){window.__liveFocus&&window.__liveFocus({name:a.name,lat:a.lat,lon:a.lon,kind:'drinking_water'});},80);}});
       else if(a.type==='route')openTab('route',{after:function(){setTimeout(function(){window.__routeSet&&window.__routeSet({lat:a.from[0],lon:a.from[1],name:a.from_name},{lat:a.to[0],lon:a.to[1],name:a.to_name});},80);}});
       else if(a.type==='screen')openTab(a.screen);}
     function botReply(r,spoken){var d=bubble('bot',r.reply);
       if(r.actions&&r.actions.length){var acts=document.createElement('div');acts.className='ask-acts';r.actions.forEach(function(a){var b=document.createElement('button');b.type='button';
-        b.innerHTML=ic(a.type==='map'?'map-pin':a.type==='directions'?'arrow-right':a.type==='route'?'flag':'arrow-right')+'<span>'+esc(a.label)+'</span>';b.onclick=function(){doAction(a);};acts.appendChild(b);});d.appendChild(acts);}
+        b.innerHTML=ic(a.type==='locate'?'crosshair':a.type==='map'?'map-pin':a.type==='directions'?'arrow-right':a.type==='route'?'flag':'arrow-right')+'<span>'+esc(a.label)+'</span>';b.onclick=function(){doAction(a);};acts.appendChild(b);});d.appendChild(acts);}
       var meta=document.createElement('div');meta.className='ask-meta';var pb=document.createElement('button');pb.type='button';pb.setAttribute('aria-label','Read aloud');pb.innerHTML=ic('speaker-high');pb.onclick=function(){say(r.reply,r.lang);};meta.appendChild(pb);
       var src=document.createElement('span');src.textContent=(r.tools_used&&r.tools_used.length?'From live data':'')+(r.provider&&r.provider!=='offline'?' · '+r.provider:'');meta.appendChild(src);d.appendChild(meta);scroll();
       if(spoken&&!mute)say(r.reply,r.lang);}
     function send(text,spoken){text=(text||'').trim();if(!text||busy)return;busy=true;inp.value='';if(!greeted){greeted=true;}
       bubble('user',text);hist.push({role:'user',text:text});var wait=document.createElement('div');wait.className='ask-msg bot';wait.innerHTML='<span class="ask-dots"><i></i><i></i><i></i></span>';log.appendChild(wait);scroll();
-      var body={messages:hist.slice(-10),ward_id:S.wardId,role:S.role||'rider',lang:lang};if(S.loc&&atUser()){body.lat=+S.loc.lat.toFixed(5);body.lon=+S.loc.lon.toFixed(5);}
+      var body={messages:hist.slice(-10),ward_id:S.wardId,role:S.role||'rider',lang:lang};if(S.loc&&atUser()){body.lat=+S.loc.lat.toFixed(5);body.lon=+S.loc.lon.toFixed(5);}if(S.loc){body.my_lat=+S.loc.lat.toFixed(5);body.my_lon=+S.loc.lon.toFixed(5);}
       get('/api/assistant/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),timeout:45000}).then(function(r){wait.remove();hist.push({role:'assistant',text:r.reply});botReply(r,spoken);})
         .catch(function(e){wait.remove();hist.pop();bubble('bot',T[lang].fail+e.message,'err');}).then(function(){busy=false;});}
     $('#askForm').onsubmit=function(e){e.preventDefault();send(inp.value,false);};

@@ -37,6 +37,8 @@ class Ctx:
     role: str = "rider"
     session: Session | None = None
     used: list = field(default_factory=list)
+    me_lat: float | None = None     # the phone's GPS position, even when the app shows another ward
+    me_lon: float | None = None
 
 
 # ---------- helpers ----------
@@ -179,10 +181,16 @@ async def plan_route(args: dict, ctx: Ctx) -> dict:
 
     async def resolve(v: str | None, label: str) -> tuple[float, float, str]:
         v = (v or "").strip()
-        if not v or v.lower() in {"me", "my location", "here", "current location"}:
-            if ctx.lat is None:
-                raise ToolError(f"Share your location in the app, or say where to start the {label}.")
-            return ctx.lat, ctx.lon, "My location"
+        if not v or v.lower() in {"me", "my location", "here", "current location", "mere location", "यहां", "यहाँ"}:
+            if ctx.me_lat is not None:
+                return ctx.me_lat, ctx.me_lon, "My location"
+            if ctx.lat is not None:
+                return ctx.lat, ctx.lon, "My location"
+            w = city().ward(ctx.ward_id) if ctx.ward_id is not None else None
+            if w:   # no GPS: start from the ward shown in the app, and say so
+                return w.lat, w.lon, f"the centre of {w.name}"
+            raise ToolError("I don't know where you are starting. Tap 'Share my location', or say "
+                            "'route from <place> to <place>'.")
         if "," in v:
             try:
                 a, b = (float(x) for x in v.split(",")[:2])

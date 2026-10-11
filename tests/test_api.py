@@ -577,3 +577,13 @@ def test_assistant_understands_hindi_ward_names(client):
     assert find_ward("Rohini East forecast").name == "Rohini East" and find_ward("weather in Rohini").name == "Rohini"
     assert find_ward("Is it safe to work now?") is None and find_ward("कोई बाढ़ चेतावनी?") is None
     assert "Zakir Nagar" in ask("जाकिर नगर का तापमान")
+
+
+def test_route_from_my_location(client):
+    chat = lambda **kw: client.post("/api/assistant/chat", json={  # noqa: E731
+        "messages": [{"role": "user", "text": "Safe route to Connaught Place"}], "lang": "en", **kw}).json()
+    r = chat(ward_id=5, my_lat=KB["lat"], my_lon=KB["lon"])          # viewing another ward, GPS known
+    assert "plan_route" in r["tools_used"] and "centre of" not in r["reply"]
+    assert not any(a["type"] == "locate" for a in r["actions"])
+    r = chat(ward_id=5)                                               # no GPS: start from the shown ward, offer to share
+    assert "starting from the centre of" in r["reply"] and r["actions"][0]["type"] == "locate"
