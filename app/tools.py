@@ -67,6 +67,8 @@ def _point(args: dict, ctx: Ctx) -> tuple[float, float, str]:
     if args.get("lat") is not None and args.get("lon") is not None:
         w = city().ward_at(float(args["lat"]), float(args["lon"]))
         return float(args["lat"]), float(args["lon"]), (args.get("label") or (f"that spot in {w.name}" if w else "that spot"))
+    if not args.get("ward") and ctx.me_lat is not None and ctx.me_lon is not None:
+        return ctx.me_lat, ctx.me_lon, "you"          # nearest to where the phone actually is
     if not args.get("ward") and ctx.lat is not None and ctx.lon is not None:
         return ctx.lat, ctx.lon, "you"
     w = _ward(args, ctx)
@@ -140,7 +142,7 @@ async def find_nearby(args: dict, ctx: Ctx) -> dict:
     lat, lon, origin = _point(args, ctx)
     limit = max(1, min(8, int(args.get("limit") or 3)))
     rows = city().places_near(lat, lon, set(kinds), limit=limit, max_m=6000)
-    return {"from": origin, "places": [
+    return {"from": origin, "from_point": [lat, lon], "places": [
         {"name": p["name"], "kind": p["kind"], "distance_m": p["distance_m"], "opening_hours": p.get("opening_hours"),
          "lat": p["lat"], "lon": p["lon"]} for p in rows],
         "note": "From OpenStreetMap; check opening hours and access on the spot." if rows else "Nothing mapped within 6 km."}
@@ -214,6 +216,8 @@ async def plan_route(args: dict, ctx: Ctx) -> dict:
 
     a = await resolve(args.get("start"), "route")
     b = await resolve(args.get("destination"), "route")
+    if args.get("destination_label"):
+        b = (b[0], b[1], str(args["destination_label"])[:80])
     try:
         r = await routing.safe_route(ctx.session, (a[0], a[1]), (b[0], b[1]))
     except UpstreamError as e:
@@ -287,7 +291,8 @@ TOOLS: list[dict[str, Any]] = [
     {"name": "plan_route", "fn": plan_route, "description": plan_route.__doc__,
      "schema": {"type": "object", "properties": {
          "start": {"type": "string", "description": "Start: 'my location', a place name, or 'lat,lon'"},
-         "destination": {"type": "string", "description": "Destination: a place name or 'lat,lon'"}},
+         "destination": {"type": "string", "description": "Destination: a place name or 'lat,lon' (for example a place from find_nearby)"},
+         "destination_label": {"type": "string", "description": "Optional name to show for a 'lat,lon' destination"}},
          "required": ["destination"]}},
     {"name": "simulate_flood", "fn": simulate_flood, "description": simulate_flood.__doc__,
      "schema": {"type": "object", "properties": {

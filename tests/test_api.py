@@ -600,3 +600,15 @@ def test_route_between_two_named_places(client):
                     ("जाकिर नगर से करोल बाग तक का रास्ता", "hi")]:
         r = client.post("/api/assistant/chat", json={"messages": [{"role": "user", "text": q}], "lang": lang}).json()
         assert r["tools_used"] == ["plan_route"] and "Zakir Nagar" in r["reply"] and "couldn't find" not in r["reply"], r
+
+
+def test_take_me_to_nearest_water_opens_route(client):
+    ask = lambda text, **kw: client.post("/api/assistant/chat", json={  # noqa: E731
+        "messages": [{"role": "user", "text": text}], "lang": "en", **kw}).json()
+    r = ask("take me to the nearest drinking water", my_lat=KB["lat"], my_lon=KB["lon"])
+    assert r["tools_used"] == ["find_nearby", "plan_route"] and "Showing the route" in r["reply"]
+    route = r["actions"][0]
+    assert route["type"] == "route" and route["auto"] and route["from_name"] == "My location"
+    assert len(route["to"]) == 2 and route["to_name"]
+    r = ask("nearest drinking water", my_lat=KB["lat"], my_lon=KB["lon"])      # just asking: a button, not auto-opened
+    assert r["actions"][0]["type"] == "route" and not r["actions"][0].get("auto")

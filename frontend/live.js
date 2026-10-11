@@ -578,7 +578,8 @@
         b.innerHTML=ic(a.type==='locate'?'crosshair':a.type==='map'?'map-pin':a.type==='directions'?'arrow-right':a.type==='route'?'flag':'arrow-right')+'<span>'+esc(a.label)+'</span>';b.onclick=function(){doAction(a);};acts.appendChild(b);});d.appendChild(acts);}
       var meta=document.createElement('div');meta.className='ask-meta';var pb=document.createElement('button');pb.type='button';pb.setAttribute('aria-label','Read aloud');pb.innerHTML=ic('speaker-high');pb.onclick=function(){say(r.reply,r.lang);};meta.appendChild(pb);
       var src=document.createElement('span');src.textContent=(r.tools_used&&r.tools_used.length?'From live data':'')+(r.provider&&r.provider!=='offline'?' · '+r.provider:'');meta.appendChild(src);d.appendChild(meta);scroll();
-      if(spoken&&!mute)say(r.reply,r.lang);}
+      if(spoken&&!mute)say(r.reply,r.lang);
+      var au=(r.actions||[]).filter(function(a){return a.auto;})[0];if(au)setTimeout(function(){doAction(au);},700);}
     function send(text,spoken){text=(text||'').trim();if(!text||busy)return;busy=true;inp.value='';if(!greeted){greeted=true;}
       bubble('user',text);hist.push({role:'user',text:text});var wait=document.createElement('div');wait.className='ask-msg bot';wait.innerHTML='<span class="ask-dots"><i></i><i></i><i></i></span>';log.appendChild(wait);scroll();
       var body={messages:hist.slice(-10),ward_id:S.wardId,role:S.role||'rider',lang:lang};if(S.loc&&atUser()){body.lat=+S.loc.lat.toFixed(5);body.lon=+S.loc.lon.toFixed(5);}if(S.loc){body.my_lat=+S.loc.lat.toFixed(5);body.my_lon=+S.loc.lon.toFixed(5);}

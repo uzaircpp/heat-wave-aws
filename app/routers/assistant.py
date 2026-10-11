@@ -118,8 +118,14 @@ async def chat(body: ChatIn, request: Request, s: Session = Depends(get_session)
             ctx.used.clear()
     if reply is None:
         reply = await offline(body.messages[-1].text, ctx, body.lang)
+    acts = actions(ctx)
+    if TAKE_ME.search(body.messages[-1].text.lower()):
+        for a in acts:
+            if a["type"] == "route":
+                a["auto"] = True      # the app opens the map with this route straight away
+                break
     return {"reply": reply, "lang": body.lang, "provider": provider,
-            "tools_used": [u["tool"] for u in ctx.used], "actions": actions(ctx)}
+            "tools_used": [u["tool"] for u in ctx.used], "actions": acts}
 
 
 def _history(msgs: list[Msg]) -> list[dict]:
@@ -171,11 +177,15 @@ def actions(ctx: tools.Ctx) -> list[dict]:
             continue
         if u["tool"] == "find_nearby" and r.get("places"):
             p = r["places"][0]
+            if not any(x["tool"] == "plan_route" for x in ctx.used):
+                start = "My location" if r["from"] == "you" else r["from"][:1].upper() + r["from"][1:]
+                out.append({"type": "route", "label": f"Route to {p['name']}", "from": r["from_point"],
+                            "to": [p["lat"], p["lon"]], "from_name": start, "to_name": p["name"]})
             out.append({"type": "map", "label": f"Show {p['name']} on map", "lat": p["lat"], "lon": p["lon"], "name": p["name"]})
             out.append({"type": "directions", "label": "Directions",
                         "url": f"https://www.google.com/maps/dir/?api=1&destination={p['lat']},{p['lon']}&travelmode=walking"})
         elif u["tool"] == "plan_route":
-            out.append({"type": "route", "label": "Open safe route", "from": r["from_point"], "to": r["to_point"],
+            out.insert(0, {"type": "route", "label": f"Route to {r['to']} on map", "from": r["from_point"], "to": r["to_point"],
                         "from_name": r["from"], "to_name": r["to"]})
         elif u["tool"] in {"get_safe_hours", "get_conditions"}:
             out.append({"type": "screen", "label": "Open safe hours", "screen": "safe"})
@@ -214,6 +224,11 @@ OFF_TOPIC = {"en": "I can only help with heat, rain and flood safety in Delhi: t
 def _p(latin: str, deva: str = "") -> str:
     return rf"\b(?:{latin})\b" + (f"|{deva}" if deva else "")
 
+
+TAKE_ME = re.compile(_p(r"take me|route|routes|directions?|navigate|guide me|show me the way|how (?:do i|to) (?:get|go|reach)|"
+                        r"le chalo|le chal|rasta|raasta|kaise jaun|kaise jau", "ले चलो|ले चल|रास्ता|रास्ते|कैसे जाऊं|कैसे जाएं|पहुंचाओ"))
+
+NEAREST = re.compile(_p(r"nearest|nearby|closest|near me|around me|paas|pass|najdik|nazdeek|kareeb|qareeb", "पास|नज़दीक|नजदीक|करीब"))
 
 _KW = {
     "emergency": _p(r"faint\w*|dizzy|vomit\w*|collaps\w*|unconscious|heat ?stroke|chakkar", "बेहोश|चक्कर|उल्टी|लू लग"),
@@ -313,6 +328,8 @@ async def mentioned_place(text: str) -> dict:
 async def offline(text: str, ctx: tools.Ctx, lang: str) -> str:
     hi = lang == "hi"
     kind = intent(text)
+    if kind == "nearby" and TAKE_ME.search(text.lower()) and not NEAREST.search(text.lower()):
+        kind = "route"     # "route to Lodhi Garden park" is a named place, not "the nearest park"
     if kind == "emergency":
         return ("तुरंत काम रोकें, छाया में जाएं, पानी से शरीर ठंडा करें और 112 या 108 पर एम्बुलेंस बुलाएं।" if hi else
                 "Stop work now, move into shade, cool the body with water and call 112 or 108 for an ambulance.")
@@ -335,6 +352,17 @@ async def offline(text: str, ctx: tools.Ctx, lang: str) -> str:
         if not r["places"]:
             return "6 किलोमीटर के अंदर कुछ नहीं मिला।" if hi else f"Nothing like that is mapped within 6 km of {r['from']}."
         p = r["places"][0]
+        if TAKE_ME.search(t):
+            o = r["from_point"]
+            rt = await tools.call("plan_route", {"start": "my location" if r["from"] == "you" else f"{o[0]},{o[1]}",
+                                                 "destination": f"{p['lat']},{p['lon']}", "destination_label": p["name"]}, ctx)
+            if "error" not in rt:
+                kind_en, kind_hi = _EN_KIND.get(p["kind"], p["kind"]), _HI_KIND.get(p["kind"], p["kind"])
+                if hi:
+                    return (f"सबसे पास {kind_hi}: {p['name']}, {_m(p['distance_m'])} दूर। रास्ता: लगभग {rt['minutes']} मिनट"
+                            + (f", {', '.join(rt['via'][:1])} से होकर" if rt["via"] else "") + "। नक्शे पर रास्ता दिखा रहा हूं।")
+                return (f"Nearest {kind_en}: {p['name']}, {_m(p['distance_m'])} away. About {rt['minutes']} minutes"
+                        + (f" via {', '.join(rt['via'][:2])}" if rt["via"] else "") + ". Showing the route on the map.")
         if hi:
             more = "; ".join(f"{x['name']} {_m(x['distance_m'])}" for x in r["places"][1:])
             return f"सबसे पास {_HI_KIND.get(p['kind'], p['kind'])}: {p['name']}, {_m(p['distance_m'])} दूर।" + (f" और: {more}।" if more else "")
