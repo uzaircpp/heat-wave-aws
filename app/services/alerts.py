@@ -77,17 +77,22 @@ def report_clusters(s: Session, radius_m: float = 400, window_h: float = 2, min_
     since = datetime.now(timezone.utc) - timedelta(hours=window_h)
     rows = s.scalars(select(Report).where(Report.kind == "waterlogging", Report.created_at >= since,
                                           Report.status != "rejected")).all()
+    # unconfirmed photos (no water seen by Rekognition) don't count until an officer accepts them
+    rows = [r for r in rows if not (r.photo_verified is False and r.status == "new")]
     used, out = set(), []
     for r in rows:
         if r.id in used:
             continue
         group = [x for x in rows if haversine_m(r.lat, r.lon, x.lat, x.lon) <= radius_m]
-        if len(group) >= min_count:
+        verified = sum(1 for x in group if x.photo_verified)
+        # a report whose photo Rekognition verified counts double: 2 reports incl. a verified one is enough
+        if len(group) >= min_count or (verified and len(group) >= min_count - 1):
             used.update(x.id for x in group)
             name = r.address or r.ward_name or "a street"
             out.append({"key": f"rep:{r.id}", "kind": "flood", "severity": "crit",
                         "title": f"Waterlogging reported near {name}",
-                        "body": f"{len(group)} reports in the last {int(window_h)} hours.",
+                        "body": f"{len(group)} reports in the last {int(window_h)} hours"
+                                + (f", {verified} with photos verified by Amazon Rekognition." if verified else "."),
                         "ward_id": r.ward_id, "lat": r.lat, "lon": r.lon})
     return out
 

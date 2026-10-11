@@ -239,7 +239,7 @@ officer token. Run it again after code changes to update. `bash deploy/aws_logs.
 | Amazon CloudFront | HTTPS for the site, needed for phone location and notifications |
 | AWS Secrets Manager | database URL and officer token, read by the server at start-up |
 | Amazon CloudWatch Logs | server logs, 7-day retention |
-| Amazon Rekognition | checks report photos: blocks unsafe images, marks photos that show water as verified |
+| Amazon Rekognition | checks report photos: blocks unsafe images; photos that show water are verified and raised in priority (two verified reports nearby raise a flood alert); photos with no water wait for an officer before they affect alerts or routes |
 | Amazon Translate | broadcasts go out in English and Hindi |
 | Amazon Bedrock | the chat assistant (tool use over live data), alert drafts and 72-hour officer briefings |
 | Amazon Polly | speaks the assistant's answers in Indian English and Hindi (neural voice Kajal) |

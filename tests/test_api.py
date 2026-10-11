@@ -612,3 +612,29 @@ def test_take_me_to_nearest_water_opens_route(client):
     assert len(route["to"]) == 2 and route["to_name"]
     r = ask("nearest drinking water", my_lat=KB["lat"], my_lon=KB["lon"])      # just asking: a button, not auto-opened
     assert r["actions"][0]["type"] == "route" and not r["actions"][0].get("auto")
+
+
+def test_rekognition_result_changes_priority_and_routing(client, aws_on, monkeypatch):
+    from app.db import SessionLocal
+    from app.services import alerts, routing
+
+    def send(water, ip, lat=28.6402, lon=77.2101):
+        monkeypatch.setattr(aws_on, "check_photo", lambda b: {"labels": ["Flood"] if water else ["Wall"], "water": water,
+                                                              "water_confidence": 95.0 if water else 0, "unsafe": False,
+                                                              "moderation": [], "service": "Amazon Rekognition"})
+        r = client.post("/api/reports", data={"kind": "waterlogging", "depth": "ankle", "lat": lat, "lon": lon},
+                        files={"photo": ("p.jpg", jpeg_bytes(), "image/jpeg")}, headers={"x-forwarded-for": ip})
+        assert r.status_code == 201, r.text
+        return r.json()
+
+    fake = send(False, "10.9.1.1")
+    assert fake["photo_verified"] is False and fake["needs_review"] and fake["severity"] == "info"
+    with SessionLocal() as s:
+        assert all(abs(h["lat"] - 28.6402) > 1e-6 for h in routing.hazards(s))      # not steering routes yet
+    real = send(True, "10.9.1.2", 28.6404, 77.2103)
+    assert real["photo_verified"] is True and real["severity"] == "warn" and not real["needs_review"]
+    send(True, "10.9.1.3", 28.6406, 77.2104)
+    with SessionLocal() as s:
+        assert any(abs(h["lat"] - 28.6404) < 1e-6 for h in routing.hazards(s))
+        clusters = [c for c in alerts.report_clusters(s) if "verified" in c["body"]]
+    assert clusters, "two verified reports close together raise an alert"

@@ -2210,7 +2210,7 @@ function initRider(){
   var savedW=store('us_ward');if(savedW!=null&&WM[savedW])S.wardId=savedW;
   function wname(){return WM[S.wardId].name;}
   function awsOn(f){return !!(S.meta&&S.meta.aws&&S.meta.aws[f]);}
-  function verifiedTxt(r){return r.photo_verified===true?'Photo verified: water seen by Amazon Rekognition':r.photo_verified===false?'Photo checked: no water detected':'';}
+  function verifiedTxt(r){return r.photo_verified===true?'Photo verified by Amazon Rekognition: water seen, so this report counts straight away':r.photo_verified===false?(r.needs_review?'We could not see water in this photo, so a ward officer will check it before it raises alerts or changes routes':'Photo checked: no water seen'):'';}
   function upsertReport(r){var i=-1;for(var k=0;k<S.reports.length;k++)if(S.reports[k].id===r.id){i=k;break;}
     var isNew=i<0;if(isNew)S.reports.unshift(r);else S.reports[i]=r;hooks.forEach(function(f){try{f(r,isNew);}catch(e){console.warn(e);}});return isNew;}
 
@@ -2613,7 +2613,7 @@ function initRider(){
     function patch(r,data){return off('/api/reports/'+r.id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)}).then(function(x){upsertReport(x);toast(x.ref+': '+STL[x.status]+(x.assignee?', '+x.assignee:''));load();}).catch(function(e){toast('Not saved: '+e.message);});}
     function render(){var list=rows.filter(function(r){return filter==='all'?r.status!=='rejected':filter==='sev'?(r.severity==='crit'&&isOpen(r)):(isOpen(r)&&!r.assignee);});
       body.innerHTML='';list.slice(0,60).forEach(function(r){var tr=document.createElement('tr');
-        tr.innerHTML='<td>'+esc(r.ref.replace(/^US-\d{4}-/,'#'))+'</td><td>'+esc(KL[r.kind]+(r.depth?', '+DL[r.depth].toLowerCase():''))+(r.photo_url?' <a href="'+API+r.photo_url+'" target="_blank" rel="noopener" style="color:var(--sun)">photo'+(r.photo_verified?' ✓':'')+'</a>':'')+'</td><td>'+esc((r.address||r.ward_name||'').split(',')[0])+'<br><small style="color:var(--dim)">'+esc(r.ward_name||'')+'</small>'+'</td><td>'+sevChip(r.severity)+'</td><td>'+ago(r.created_at)+'</td><td>'+stCell(r)+'</td>';
+        tr.innerHTML='<td>'+esc(r.ref.replace(/^US-\d{4}-/,'#'))+'</td><td>'+esc(KL[r.kind]+(r.depth?', '+DL[r.depth].toLowerCase():''))+(r.photo_url?' <a href="'+API+r.photo_url+'" target="_blank" rel="noopener" style="color:var(--sun)">photo'+(r.photo_verified?' ✓ water':'')+'</a>':'')+(r.needs_review?' <span title="Amazon Rekognition saw no water in the photo" style="color:#FF9A7A">· check photo</span>':'')+'</td><td>'+esc((r.address||r.ward_name||'').split(',')[0])+'<br><small style="color:var(--dim)">'+esc(r.ward_name||'')+'</small>'+'</td><td>'+sevChip(r.severity)+'</td><td>'+ago(r.created_at)+'</td><td>'+stCell(r)+'</td>';
         var b=tr.querySelector('.assign');if(b)b.onclick=function(){var m=modal('Assign '+r.ref,'<label class="sr" for="crewIn">Crew</label><input id="crewIn" class="tok-in" value="Crew A" style="font-family:var(--sans)">',[{label:'Cancel'},{label:'Assign',primary:true,fn:function(m){var v=m.querySelector('#crewIn').value.trim();if(!v)return false;patch(r,{assignee:v});}}]);};
         var s=tr.querySelector('.st-sel');if(s)s.onchange=function(){patch(r,{status:s.value});};body.appendChild(tr);});
       if(!body.children.length)body.innerHTML='<tr><td colspan="6" style="color:var(--dim);font-family:var(--sans)">'+(rows.length?'Nothing here. Every report has a crew.':'No citizen reports in the last 30 days.')+'</td></tr>';}

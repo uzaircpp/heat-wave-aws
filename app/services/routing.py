@@ -26,6 +26,8 @@ def hazards(s: Session) -> list[dict]:
     since = datetime.now(timezone.utc) - timedelta(hours=6)
     rows = s.scalars(select(Report).where(Report.kind == "waterlogging", Report.created_at >= since,
                                           Report.status.not_in(["resolved", "rejected"]))).all()
+    # photos where Amazon Rekognition saw no water wait for an officer before they steer routes
+    rows = [r for r in rows if not (r.photo_verified is False and r.status == "new")]
     out = [{"type": "report", "name": r.address or r.ward_name or "Waterlogging", "lat": r.lat, "lon": r.lon,
             "weight": DEPTH_WEIGHT.get(r.depth, 0.8), "detail": f"{r.depth or 'unknown'} deep, reported"} for r in rows]
     if weather.ready:

@@ -44,6 +44,8 @@ def public_report(r: Report) -> dict:
         "photo_url": f"/api/photos/{r.photo_path}" if r.photo_path else None, "severity": r.severity,
         "status": r.status, "assignee": r.assignee, "created_at": r.created_at, "updated_at": r.updated_at,
         "resolved_at": r.resolved_at, "photo_verified": r.photo_verified,
+        # a waterlogging photo without visible water waits for an officer before it raises alerts or changes routes
+        "needs_review": bool(r.photo_verified is False and r.status == "new"),
         "photo_labels": (r.photo_check or {}).get("labels") if r.photo_check else None,
     }
 
@@ -122,10 +124,15 @@ async def create_report(
     except UpstreamError:
         address = None
     desc = re.sub(r"\s+", " ", description).strip() if description else None
+    verified = check["water"] if check and kind == "waterlogging" else None
+    severity = severity_for(kind, depth)
+    if verified is True and severity == "info":
+        severity = "warn"          # Rekognition saw water: treat it as confirmed and raise it
+    elif verified is False:
+        severity = "info"          # photo shows no water: lowest priority until an officer checks it
     r = Report(ref=ref, kind=kind, depth=depth if kind == "waterlogging" else None, description=desc,
                lat=lat, lon=lon, ward_id=ward.id, ward_name=ward.name, address=address, photo_path=photo_path,
-               severity=severity_for(kind, depth), reporter_hash=rh, photo_check=check,
-               photo_verified=(check["water"] if check and kind == "waterlogging" else None))
+               severity=severity, reporter_hash=rh, photo_check=check, photo_verified=verified)
     s.add(r)
     s.flush()
     s.add(ReportEvent(report_id=r.id, actor="citizen", action="created", data={}))
