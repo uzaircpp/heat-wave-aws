@@ -214,9 +214,9 @@ _KW = {
     "route": _p(r"route|way to|go to|reach|directions?|road to|rasta|raasta", "रास्ता|रास्ते|जाना|जाऊं|पहुंच"),
     "flood_sim": r"(\d+)\s*mm|मिमी|" + _p(r"what if|simulat\w*"),
     "alerts": _p(r"alerts?|warnings?|floods?|flooding|waterlog\w*|underpass\w*|chetavani", "चेतावनी|बाढ़|जलभराव"),
-    "forecast": _p(r"forecast|tomorrow|week|next days|kal|hafte", "कल|हफ्ते|मौसम"),
+    "forecast": _p(r"forecast|tomorrow|week|next days|kal|hafte", "कल|हफ्ते"),
     "safe": _p(r"safe|work\w*|hours?|break|rest|when|kaam|aaram|surakshit", "काम|आराम|सुरक्षित|कब"),
-    "now": _p(r"weather|temp\w*|hot|heat|humid\w*|sun|sunny|uv|garmi|dhoop", "गर्मी|धूप|तापमान|गरम"),
+    "now": _p(r"weather|temp\w*|hot|heat|humid\w*|sun|sunny|uv|garmi|dhoop|mausam|mosam|tapman|taapmaan", "गर्मी|धूप|तापमान|गरम|मौसम"),
     "app": _p(r"how (?:do|to) (?:i )?(?:use|report)|report\w*|app|kaise", "कैसे|रिपोर्ट"),
 }
 
